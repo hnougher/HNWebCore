@@ -1,0 +1,14 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<table class="OBJUser" read="user" write="user" insert="" delete="">
+	<field name="userid" type="int" key="auto" write="" read="all"/>
+	<field name="username" type="str" max="20" key="unique" read="all"/>
+	<field name="password" type="str" max="64" password="1" read="all"/>
+	<field name="first_name" type="str" max="40"/>
+	<field name="last_name" type="str" max="40"/>
+	<field name="gender" type="str" max="6" enum="|Female|Male"/>
+	<field name="staff_number" type="str" max="20"/>
+	<field name="created" type="str" max="19"/>
+	<field name="role" type="str" max="21" enum="Programmmer|Admin|Learning Designer|Educational Developer|Service Provider" read="all"/>
+</table>

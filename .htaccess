@@ -1,0 +1,18 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+Options -Indexes
+
+RewriteEngine on
+
+# DONT FORGET ME!!
+RewriteBase /HNWebCore/
+
+# THIS IS THE REWRITE STUFF
+RewriteCond %{REQUEST_URI} !^/HNWebCore/robots.txt [NC]
+RewriteCond %{REQUEST_URI} !^/HNWebCore/style/* [NC]
+RewriteCond %{REQUEST_URI} !^/HNWebCore/files/* [NC]
+RewriteCond %{REQUEST_URI} !^/HNWebCore/crossdomain.xml [NC]
+RewriteRule ^(.*)$ index.php?autoquery=$1 [QSA]
+
