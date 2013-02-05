@@ -11,34 +11,18 @@
 * @package HNWebCore
 */
 
+require_once CLASS_PATH. '/HNDB.class.php';
+
 /**
 * Gives static functions that deal with accesses to the database.
 */
-class HNMySQL
+class HNMySQL extends HNDB
 {
 	/**
 	* Holds the mysqli object after it has been initialised.
-	* @var mysqli
+	* @var conn
 	*/
-	private static $mysqli;
-
-	/**
-	* Holds the running total of number of queries run.
-	* @var integer
-	*/
-	private static $sumSql = 0;
-
-	/**
-	* Holds the running total of time in queries.
-	* @var integer
-	*/
-	private static $sumTime = 0;
-
-	/**
-	* Holds the time it took for the last to run.
-	* @var integer
-	*/
-	private static $lastTime = 0;
+	private static $conn;
 
 	/**
 	* Initiates the mysqli object for use.
@@ -47,11 +31,11 @@ class HNMySQL
 	* @param string $user The MySQL server username
 	* @param string $pass The MySQL server password
 	* @param string $db The Database we are dealing with
-	* @uses HNMySQL::mysqli
+	* @uses HNMySQL::conn
 	*/
 	public static function connect( $host, $user, $pass, $db )
 	{
-		self::$mysqli = new mysqli( $host, $user, $pass, $db );
+		self::$conn = new mysqli( $host, $user, $pass, $db );
 		if( mysqli_connect_error() )
 		{
 			// Failed to connect to database
@@ -63,44 +47,34 @@ class HNMySQL
 	* Processes the Query
 	*
 	* @param string $sql The sql to be processed
-	* @param string $sql The sql to be processed
+	* @param string $resultMode The MySQL result mode to use
 	* @return mysqli_result
 	*/
 	public static function query($sql, $resultMode = MYSQLI_STORE_RESULT) {
-		// Check that the mysqli object is running
-		if (!isset(self::$mysqli)) {
-			throw new HNMySQLException('Not connected to a MySQL Server', HNMySQLException::NOT_CONNECTED);
-		}
-
+		self::running(true);
 		$startTime = microtime( true );
 
-		$result = self::$mysqli->query($sql, $resultMode);
+		$result = self::$conn->query($sql, $resultMode);
 		if ($result === false) {
 			if (DEBUG)
-				throw new HNMySQLException( 'Query Error: SQL="' .$sql. '", ERROR="' .self::$mysqli->error. '"', HNMySQLException::BAD_QUERY );
+				throw new HNDBException( 'Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY );
 			else
-				throw new HNMySQLException('Query Error: ' .self::$mysqli->error, HNMySQLException::BAD_QUERY);
+				throw new HNDBException('Query Error: ' .self::$conn->error, HNDBException::BAD_QUERY);
 		}
 		self::$lastTime = microtime(true) - $startTime;
 		self::$sumTime += self::$lastTime;
-		self::$sumSql++;
+		self::$sumQueries++;
 		// HNTPLPage::set_debug_raw(sprintf("%1.2e sec => %s", self::$lastTime, self::highlight_sql($sql, true, true)));
 		return $result;
 	}
 
 	/**
 	* @return integer Returns the most recent auto insert id.
-	* @uses HNMySQL::mysqli
+	* @uses HNMySQL::conn
 	*/
-	public static function insert_id()
-	{
-		// Check that the mysqli object is running
-		if( !isset( self::$mysqli ) )
-		{
-			throw new HNMySQLException( 'Not connected to a MySQL Server', HNMySQLException::NOT_CONNECTED );
-		}
-
-		return self::$mysqli->insert_id;
+	public static function insert_id() {
+		self::running(true);
+		return self::$conn->insert_id;
 	}
 
 	/**
@@ -110,10 +84,9 @@ class HNMySQL
 	* @param ? $resulttype This optional parameter is a constant indicating what type of array should be produced from the current row data. The possible values for this parameter are the constants MYSQLI_ASSOC, MYSQLI_NUM, or MYSQLI_BOTH. 
 	* @return array
 	*/
-	public static function fetch_all( $result, $resulttype = MYSQLI_NUM )
-	{
+	public static function fetch_all($result, $resulttype = MYSQLI_NUM) {
 		$ret = array();
-		while( $row = $result->fetch_array( $resulttype ) )
+		while ($row = $result->fetch_array($resulttype))
 			$ret[] = $row;
 		return $ret;
 	}
@@ -121,66 +94,32 @@ class HNMySQL
 	/**
 	 * Expose the mysqli info parameter
 	 */
-	public static function info()
-	{
-		// Check that the mysqli object is running
-		if( !isset( self::$mysqli ) )
-		{
-			throw new HNMySQLException( 'Not connected to a MySQL Server', HNMySQLException::NOT_CONNECTED );
-		}
-
-		return self::$mysqli->info;
-	}
-
-	/**
-	* @return integer The time it took the last query to complete.
-	* @uses HNMySQL::lastTime
-	*/
-	public static function last_time()
-	{
-		return self::$lastTime;
+	public static function info() {
+		self::running(true);
+		return self::$conn->info;
 	}
 
 	/**
 	 * @return mysqli The MySQLi object that is being used by this class.
 	 */
-	public static function getMysqli()
-	{
-		return self::$mysqli;
+	public static function getMysqli() {
+		return self::$conn;
 	}
 
 	/**
-	* @return integer The sum of the time it has taken all queries to complete upto now.
-	* @uses HNMySQL::sumTime
-	*/
-	public static function sum_of_time()
-	{
-		return self::$sumTime;
-	}
-
-	/**
-	* @return integer The count of queries to complete upto now.
-	* @uses HNMySQL::sumSql
-	*/
-	public static function sum_of_sql()
-	{
-		return self::$sumSql;
-	}
-
-	/**
-	* Test if the server is running
+	* Test if the server connection is running
 	*
-	* @param string $text The text to be escaped
-	* @return string The escaped string
-	* @uses HNMySQL::mysqli
+	* @param boolean $throw (Default: FALSE) Set to true to have this throw an exception if the connecting is dead.
+	* @return boolean Returns TRUE if the connection is running, FALSE otherwise.
+	* @uses HNMySQL::conn
 	*/
-	public static function running( )
-	{
+	public static function running($throw = false) {
 		// Check that the mysqli object is running
-		if( isset( self::$mysqli ) )
-		  return true;
-		else
-		  return false;
+		if (isset(self::$conn))
+			return true;
+		if ($throw)
+			throw new HNDBException('Not connected to a DB Server', HNDBException::NOT_CONNECTED);
+		return false;
 	}
 
 	/**
@@ -188,17 +127,11 @@ class HNMySQL
 	*
 	* @param string $text The text to be escaped
 	* @return string The escaped string
-	* @uses HNMySQL::mysqli
+	* @uses HNMySQL::conn
 	*/
-	public static function escape( $text )
-	{
-		// Check that the mysqli object is running
-		if( !isset( self::$mysqli ) )
-		{
-			throw new HNMySQLException( 'Not connected to a MySQL Server', HNMySQLException::NOT_CONNECTED );
-		}
-
-		return self::$mysqli->real_escape_string( $text );
+	public static function escape($text) {
+		self::running(true);
+		return self::$conn->real_escape_string( $text );
 	}
 
 	/**
@@ -255,10 +188,4 @@ class HNMySQL
 		}
 		return $sql;
 	}
-}
-
-class HNMySQLException extends Exception
-{
-	const NOT_CONNECTED = 1;
-	const BAD_QUERY = 2;
 }

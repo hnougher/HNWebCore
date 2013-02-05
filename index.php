@@ -26,12 +26,17 @@ if( isset( $_SESSION['showStats'] ) && $_SESSION['showStats'] == 1 )
 	define( 'STATS', true );
 
 require_once 'config.php';
-require_once 'classes/ErrorHandler.class.php';
-require_once 'classes/HNMySQL.class.php';
-require_once 'classes/FieldList.class.php';
-require_once 'classes/HNOBJBasic.obj.class.php';
-require_once 'classes/HNMOBBasic.class.php';
+require_once CLASS_PATH. '/ErrorHandler.class.php';
+require_once CLASS_PATH. '/HNMySQL.class.php';
+require_once CLASS_PATH. '/FieldList.class.php';
+require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
+require_once CLASS_PATH. '/HNMOBBasic.class.php';
 require_once 'hntpl/page.php';
+if (LDAP_ENABLED) {
+	require_once CLASS_PATH. '/HNLDAP.class.php';
+	require_once CLASS_PATH. '/HNLDAPBasic.obj.class.php';
+}
+
 
 $GLOBALS['user_types'] = array( 'login' => true );
 
@@ -76,9 +81,11 @@ class Loader
 		// Set the Default Timezone
 		date_default_timezone_set(SERVER_TIMEZONE);
 
-		// Login to MySQL Server
+		// Login to DB Server(s)
 		HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
-
+		if (LDAP_ENABLED)
+			HNLDAP::connect(LDAP_HOST, LDAP_VERSION, LDAP_BIND_RDN, LDAP_BIND_PASS, LDAP_PORT);
+		
 		// Collect the normal vars from the input
 		$ajax = isset($_REQUEST['ajax']) ? intval($_REQUEST['ajax']) : false;
 		$query = !empty($_GET['autoquery']) ? explode('/', $_GET['autoquery']) : array('root');
@@ -217,9 +224,9 @@ class Loader
 	public static function get_stats() {
 		$OBJStats = HNOBJBasic::getObjectCounts();
 		$MOBStats = HNMOBBasic::getObjectCounts();
-		$out = sprintf("<b>User Roles at Start:</b> %s\n<b>Total MySQL Queries:</b> %d\n<b>Total MySQL Time:</b> %1.2e sec\n<b>Pre Output Time:</b> %1.2e sec\n<b>Memory Used At End:</b> %01.1f MB\n<b>Memory Used Peak:</b> %01.1f MB\n<b>Total DB Objects Created:</b> %d\n<b>Current DB Objects:</b> %d",
+		$out = sprintf("<b>User Roles at Start:</b> %s\n<b>Total Queries:</b> %d\n<b>Total Query Time:</b> %1.2e sec\n<b>Pre Output Time:</b> %1.2e sec\n<b>Memory Used At End:</b> %01.1f MB\n<b>Memory Used Peak:</b> %01.1f MB\n<b>Total DB Objects Created:</b> %d\n<b>Current DB Objects:</b> %d",
 			(isset($GLOBALS['UserRolesAtStart']) ? implode(', ', array_keys($GLOBALS['UserRolesAtStart'])) : 'all'),
-			HNMySQL::sum_of_sql(),
+			HNMySQL::sum_of_queries(),
 			HNMySQL::sum_of_time(),
 			microtime(1) - $GLOBALS['ScriptStartTime'],
 			memory_get_usage() / 1024 / 1024,

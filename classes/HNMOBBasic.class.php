@@ -173,37 +173,14 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 		// Get list of readable fields
 		$readableFields = $this->fieldList->getReadable();
-		
-		// Check for problems
-		if ($this->parentIdField != 'NONE')
-			return false;
-		if (!isset($readableFields[$this->parentIdField]))
-			throw new Exception('Parent field is not readable');
-		
-		// Make the SQL statement
-		$sql = 'SELECT ';
-		$sqlFields = (array) $this->fieldList->getIdField();
-		if ($loadChildren) {
-			foreach ($readableFields as $name => $fieldInfo) {
-				if ($fieldInfo['type'] != 'rev_object') {
-					/*$sqlFields[] = '`' .$name. '` AS "0' .$name. '"';*/
-					$sqlFields[] = $name;
-				}
-			}
-			unset($name, $fieldInfo);
-		}
-		$sql .= '`' .implode('`,`', array_unique($sqlFields)). '`';
-		unset($sqlFields);
-		
-		$sql .= ' FROM `' .$this->fieldList->getTable(). '` ';
 
-		// Check over the where list and process it
-		$whereFields = array();
-		if ($this->parentIdField != 'NONE') {
-			$whereFields[] = '`' .$this->parentIdField. '`="' .HNMySQL::escape($this->parentId). '"';
-		}
+		// Check for problems
+		if ($this->parentIdField != 'NONE' && !isset($readableFields[$this->parentIdField]))
+			throw new Exception('Parent field is not readable');
+
+		// Clean up the where parts
 		if (is_array($whereParts)) {
-			$validSigns = array('=','!=','<','>','<=','>=');
+			$cleanWhereParts = array();
 			foreach ($whereParts AS $part) {
 				// Check that the where part looks valid
 				if (!is_array($part) || count($part) != 3) {
@@ -217,6 +194,124 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 					continue;
 				}
 
+				$cleanWhereParts[] = $part;
+			}
+			$whereParts = $cleanWhereParts;
+			unset($cleanWhereParts);
+		}
+
+		$LDAPBase = $this->fieldList->getLDAPBase();
+		if (!empty($LDAPBase))
+			$this->load_ldap($readableFields, $orderParts, $whereParts, $loadChildren);
+		else
+			$this->load_mysqli($readableFields, $orderParts, $whereParts, $loadChildren);
+		
+		$this->isLoaded = true;
+		return true;
+	}
+
+	/**
+	* Special loader for ldap tables.
+	*/
+	private function load_ldap($readableFields, $orderParts, $whereParts, $loadChildren) {
+		// Gather fields to fetch
+		$fields = (array) $this->fieldList->getIdField();
+		if ($loadChildren) {
+			foreach ($readableFields as $name => $fieldInfo) {
+				if ($fieldInfo['type'] != 'rev_object') {
+					/*$sqlFields[] = '`' .$name. '` AS "0' .$name. '"';*/
+					$fields[] = $name;
+				}
+			}
+			unset($name, $fieldInfo);
+			$fields = array_unique($fields);
+		}
+		
+		// Create LDAP filter
+		$filter = array();
+		if ($this->parentIdField != 'NONE')
+			$filter[] = '(' .$this->parentIdField. '=' .HNLDAP::escape($this->parentId). ')';
+		if (is_array($whereParts)) {
+			$validSigns = array('=','<','>','<=','>=');
+			foreach ($whereParts AS $part) {
+				// Check that the sign is one of the valid ones
+				if (!in_array($part[1], $validSigns)) {
+					trigger_error('Bad sign "' .$part[1]. '" in where part', E_USER_WARNING);
+					continue;
+				}
+
+				$filter[] = '(' .$part[0].$part[1].HNLDAP::escape($part[2]). ')';
+			}
+		}
+		$filter = (count($filter) > 1 ? '(&' .implode('', $filter). ')' : implode('', $filter));
+
+		// Do the Query
+		$result = HNLDAP::search($this->fieldList->getLDAPBase(), $filter, $fields);
+		if (!$result) {
+			// The query has failed for some reason
+			return false;
+		}
+
+		// Check over the order list and process it
+		if (is_array($orderParts)) {
+			foreach ($readableFields as $name => $f) {
+				if (isset($orderParts[$name])) {
+					$result = HNLDAP::sort($result, $name);
+					if (!$orderParts[$name])
+						$result = array_reverse($result);
+				}
+			}
+			unset($name, $f);
+		}
+
+		// Load all the objects
+		unset($result['count']); // Done want LDAP count
+		if ($loadChildren) {
+			$idFields = $this->fieldList->getIdField();
+			foreach ($result as $row) {
+				unset($row['count']);
+				$idSet = array();
+				foreach ((array) $idFields AS $idField)
+					$idSet[] = (isset($row[$idField]) ? $row[$idField] : 0);
+				
+				$this->objectList[] = array($idSet, $row);
+			}
+		}
+		else {
+			foreach ($result as $row) {
+				unset($row['count']); // Done want LDAP count
+				$this->objectList[] = array(array_values($row));
+			}
+		}
+	}
+
+	/**
+	* Special loader for mysql tables.
+	*/
+	private function load_mysqli($readableFields, $orderParts, $whereParts, $loadChildren) {
+		// Make the SQL statement
+		$sql = 'SELECT ';
+		$sqlFields = (array) $this->fieldList->getIdField();
+		if ($loadChildren) {
+			foreach ($readableFields as $name => $fieldInfo) {
+				if ($fieldInfo['type'] != 'rev_object')
+					$sqlFields[] = $name;
+			}
+			unset($name, $fieldInfo);
+			$sqlFields = array_unique($sqlFields);
+		}
+		$sql .= '`' .implode('`,`', $sqlFields). '`';
+		unset($sqlFields);
+		
+		$sql .= ' FROM `' .$this->fieldList->getTable(). '` ';
+
+		// Check over the where list and process it
+		$whereFields = array();
+		if ($this->parentIdField != 'NONE')
+			$whereFields[] = '`' .$this->parentIdField. '`="' .HNMySQL::escape($this->parentId). '"';
+		if (is_array($whereParts)) {
+			$validSigns = array('=','!=','<','>','<=','>=');
+			foreach ($whereParts AS $part) {
 				// Check that the sign is one of the valid ones
 				if (!in_array($part[1], $validSigns)) {
 					trigger_error('Bad sign "' .$part[1]. '" in where part', E_USER_WARNING);
@@ -230,13 +325,12 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 				$whereFields[] = '`' .$part[0]. '`' .$part[1]. '"' .$value. '"';
 			}
 		}
-		if (count($whereFields)) {
+		if (count($whereFields))
 			$sql .= 'WHERE ' .implode(' AND ', $whereFields);
-		}
 		unset($whereFields, $value, $part, $validSigns);
 
 		// Check over the order list and process it
-		if(is_array($orderParts)) {
+		if (is_array($orderParts)) {
 			$orderShown = false;
 			foreach ($readableFields as $name => $f) {
 				if (isset($orderParts[$name])) {
@@ -264,7 +358,6 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Load all the objects
 		if ($loadChildren) {
 			$idFields = $this->fieldList->getIdField();
-			$countIdFields = count($this->fieldList->getIdField());
 			while ($row = $result->fetch_assoc()) {
 				$idSet = array();
 				foreach ((array) $idFields AS $idField)
@@ -286,9 +379,6 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 		// Close the result set
 		$result->free();
-		
-		$this->isLoaded = true;
-		return true;
 	}
 
 	/**

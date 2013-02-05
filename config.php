@@ -33,6 +33,15 @@ $config = array(
 	'MYSQL_PASS'		=> 'bEZ4hXrQMH52WyUJ',
 	'MYSQL_DATABASE'	=> 'hnwc_ucms',
 	
+	// LDAP Database
+	'LDAP_ENABLED'		=> false,
+	'LDAP_VERSION'		=> 3, // Gives protocol errors when set wrong
+	'LDAP_HOST'			=> 'localhost',
+	'LDAP_PORT'			=> 10389,
+	'LDAP_BIND_RDN'		=> NULL,
+	'LDAP_BIND_PASS'	=> NULL,
+	
+	'CLASS_PATH'		=> BASE_PATH . '/classes',
 	'DBSTRUCT_PATH'		=> BASE_PATH . '/dbstruct',
 	'PAGE_PATH'			=> BASE_PATH . '/pages',
 	'TEMPLATE_PATH'		=> BASE_PATH . '/hntpl',

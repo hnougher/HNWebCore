@@ -69,19 +69,19 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* later by other objects. This does not get changed.
 	* @var array
 	*/
-	private $myData = array();
+	protected $myData = array();
 
 	/**
 	* Constains the values that have been changed compared to the
 	* database values. These are saved when {@link save()} is called.
 	* @var array
 	*/
-	private $myChangedData = array();
+	protected $myChangedData = array();
 
 	/**
 	 * Reverse Link To Parent.
 	 */
-	private $myParentObject = null;
+	protected $myParentObject = null;
 
 	/**
 	* Loads an object using the config specified object class so that the
@@ -357,7 +357,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	/**
 	* Processes the Data into the correct data types and locally store it.
 	*/
-	private function storeArrayToLocal($dataArray) {
+	protected function storeArrayToLocal($dataArray) {
 		foreach ($this->fieldList->getReadable() as $name => $fieldInfo) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
@@ -378,6 +378,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$this->myData[$name] = (boolean) $dataArray[$name];
 			elseif ($fieldInfo['type'] == 'byte')
 				$this->myData[$name] = ord($dataArray[$name]);
+			elseif ($fieldInfo['type'] == 'array') {
+				$this->myData[$name] = (array) $dataArray[$name];
+				if (empty($this->myData[$name]['count']))
+					$this->myData[$name]['count'] = 1;
+			}
 			elseif ($fieldInfo['type'] == 'object') {
 				if (isset($oldData[$name]) && $oldData[$name] instanceof HNOBJBasic && $oldData[$name]->getId() == $fieldData)
 					$this->myData[$name] = $oldData[$name];
@@ -425,6 +430,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		else {
 			// Get the field names that we are allowed to write
 			$fields = $this->fieldList->getWriteable();
+
+			if(!count($fields))
+				// This user cannot update this table
+				return false;
 
 			// Make the SQL for Updating
 			$sql = 'UPDATE `' .$this->fieldList->getTable(). '` SET ';
@@ -610,12 +619,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			trigger_error('No such field "' .$field. '" in "' .$this->getTable(). '" or unauthorised', E_USER_WARNING);
 			return false;
 		}
-		if (is_array($this->myData[$field])) {
+		if (is_array($this->myData[$field]) && empty($this->myData[$field]['count'])) {
 			$setupInfo = $this->myData[$field];
 			if ($setupInfo[0] == 1) {
 				$this->myData[$field] = HNOBJBasic::loadObject($setupInfo[1], $setupInfo[2]);
-			}
-			else {
+			} else {
 				$this->myData[$field] = new HNMOBBasic($setupInfo[1], $setupInfo[2], $this->getId(), $this);
 			}
 		}
