@@ -20,6 +20,8 @@ $config = array(
 
 	'CSS_CACHETIME'		=> 7 * 24 * 60 * 60,
 	'LOGIN_TIMEOUT'		=> 1200,
+	'LOGIN_PRESALT'		=> '',
+	'LOGIN_POSTSALT'	=> '',
 
 	'SERVER_IDENT'		=> 'HNWebCore',
 	'SERVER_ADDRESS'	=> 'http://localhost/HNWebCore',

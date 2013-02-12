@@ -166,8 +166,7 @@ class HNTPLPage extends HNTPLMainTypes
 	* @uses $helpLoc
 	* @uses self::$debug
 	*/
-	public function output( $capture = false )
-	{
+	public function output( $capture = false ) {
 		if( $capture )
 			ob_start();
 
@@ -268,12 +267,12 @@ class HNTPLPage extends HNTPLMainTypes
 			echo '</body></html>';
 		}
 
-		if( $capture )
+		if ($capture)
 			return ob_get_clean();
 	}
 	
 	/**
-	* Output subtemplate for the main site.
+	* Output subtemplate for the main site (if wanted).
 	*/
 	private function output_default() {
 	
@@ -281,20 +280,19 @@ class HNTPLPage extends HNTPLMainTypes
 			<tr>
 				<td style="text-align:right;">
 					<span class="headerText" style="font-weight: bold; padding-left:30px; color: #000;">Logged in as: '.$this->userName. '</span><br/>
-					<a href="/staff/password">My Details</a> | <a href="/menu?logout' .(isset($css) ? '&css='.$css : ''). '">Sign Out</a>
+					<a href="' .SERVER_ADDRESS. '/staff/password">My Details</a> | <a href="' .SERVER_ADDRESS. '?logout' .(isset($css) ? '&css='.$css : ''). '">Sign Out</a>
 				</td>
 			</table>';
 		
 		if (!empty($_SESSION['confirm'])) {
 			echo '<div class="bBconfirm ui-corner-all">';
-				echo implode('<br/>', $_SESSION['confirm']);
+				echo implode('<br/>', (array) $_SESSION['confirm']);
 			echo '</div>';
 			unset($_SESSION['confirm']);
 		}
 		if (!empty($_SESSION['error'])) {
 			echo '<div class="bBerror ui-corner-all">';
-				//echo implode('<br/>', $_SESSION['error']);
-				echo $_SESSION['error'];
+				echo implode('<br/>', (array) $_SESSION['error']);
 			echo '</div>';
 			unset($_SESSION['error']);
 		}

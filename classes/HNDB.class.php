@@ -63,4 +63,5 @@ class HNDBException extends Exception
 {
 	const NOT_CONNECTED = 1;
 	const BAD_QUERY = 2;
+	const CANT_CONNECT = 3;
 }

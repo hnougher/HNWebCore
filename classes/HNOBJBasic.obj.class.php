@@ -647,12 +647,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		if ($this->has_record()) {
 			$fields = $this->fieldList->getWriteable();
 			if (!isset($fields[$field]))
-				throw new Exception('Attempt to set a non-writeable field in existing OBJ');
+				throw new Exception('Attempt to set a non-writeable field "' .$field. '" in existing OBJ');
 		}
 		else {
 			$fields = $this->fieldList->getInsertable();
 			if (!isset($fields[$field]))
-				throw new Exception('Attempt to set a non-insertable field in new OBJ');
+				throw new Exception('Attempt to set a non-insertable field "' .$field. '" in new OBJ');
 		}
 		$fieldParam = $fields[$field];
 		unset($fields);

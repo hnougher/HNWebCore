@@ -94,7 +94,7 @@ class FieldList
 			return $GLOBALS['uo']->testUserType($toCheck);
 		
 		// Fallback for when they are not logged in yet
-		if (preg_match('/^all | all | all$/', $toCheck))
+		if (preg_match('/^all | all | all$|^all$/', $toCheck))
 			return true;
 		return false;
 	}
@@ -104,6 +104,15 @@ class FieldList
 	*/
 	public function getTable() {
 		return $this->myTable;
+	}
+
+	/**
+	* This is used for LDAP based tables.
+	* 
+	* @return string The tree base string.
+	*/
+	public function getLDAPBase() {
+		return $this->myFields['LDAPBase'];
 	}
 
 	/**

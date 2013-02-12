@@ -31,12 +31,12 @@ require_once CLASS_PATH. '/HNMySQL.class.php';
 require_once CLASS_PATH. '/FieldList.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
+require_once CLASS_PATH. '/HNAutoQuery.class.php';
 require_once 'hntpl/page.php';
 if (LDAP_ENABLED) {
 	require_once CLASS_PATH. '/HNLDAP.class.php';
 	require_once CLASS_PATH. '/HNLDAPBasic.obj.class.php';
 }
-
 
 $GLOBALS['user_types'] = array( 'login' => true );
 
@@ -48,12 +48,14 @@ function confirm($message) {
 		$_SESSION['confirm'] = array();
 	$_SESSION['confirm'][] = $message;
 }
+function error($message) {
+	if (empty($_SESSION['error']))
+		$_SESSION['error'] = array();
+	$_SESSION['error'][] = $message;
+}
 function isFalse($condition, $message) {
-	if (!$condition) {
-		if (empty($_SESSION['error']))
-			$_SESSION['error'] = array();
-		$_SESSION['error'][] = $message;
-	}
+	if (!$condition)
+		error($message);
 	return !$condition;
 }
 
@@ -83,8 +85,16 @@ class Loader
 
 		// Login to DB Server(s)
 		HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
-		if (LDAP_ENABLED)
-			HNLDAP::connect(LDAP_HOST, LDAP_VERSION, LDAP_BIND_RDN, LDAP_BIND_PASS, LDAP_PORT);
+		if (LDAP_ENABLED) {
+			try {
+				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, LDAP_BIND_RDN, LDAP_BIND_PASS, LDAP_PORT);
+			} catch (Exception $e) {
+				error('Cannot connect to LDAP server.');
+				if (DEBUG)
+					throw $e;
+				return;
+			}
+		}
 		
 		// Collect the normal vars from the input
 		$ajax = isset($_REQUEST['ajax']) ? intval($_REQUEST['ajax']) : false;
@@ -112,7 +122,7 @@ class Loader
 			if (!in_array(strtolower($query[0]), explode(',', NO_LOGIN_PAGES))) {
 			//if ($query[0] != 'root' && $query[0] != 'HELP') {
 				self::login_start();
-				die();
+				die;
 			} else {
 				$uo = null;
 			}
@@ -190,24 +200,9 @@ class Loader
 		// Set the base template variables
 		if ($uo != null) {
 			$HNTPL->set_user_name($uo['username']);
-
-			// Unset the leftover variables
-			$uo->clean();
-			unset($uo, $GLOBALS['uo']);
 		}
 
-		// Add the debug text if it exists and allowed
-		$debug = trim( ob_get_clean() );
-		if (DEBUG) {
-			if (!empty($debug))
-				HNTPLPage::set_debug($debug);
-		} else {
-			$HNTPL->clear_debug();
-		}
-
-		// Add statistic information
-		if (STATS)
-			HNTPLPage::set_debug_raw(self::get_stats());
+		self::InsertDebugStats();
 
 		// Output the template
 		if (isset($_REQUEST['pdf']) && $_REQUEST['pdf'] == 1) {
@@ -219,6 +214,21 @@ class Loader
 			if (STATS)
 				printf('<span class="screenOnly">Total Script Time: %1.2e sec</span>', microtime(1) - $GLOBALS['ScriptStartTime']);
 		}
+	}
+
+	private static function InsertDebugStats() {
+		// Add the debug text if it exists and allowed
+		$debug = trim(ob_get_clean());
+		if (DEBUG) {
+			if (!empty($debug))
+				HNTPLPage::set_debug($debug);
+		} else {
+			HNTPLPage::clear_debug();
+		}
+
+		// Add statistic information
+		if (STATS)
+			HNTPLPage::set_debug_raw(self::get_stats());
 	}
 
 	public static function get_stats() {
@@ -305,6 +315,7 @@ class Loader
 	private static function login_start() {
 		$HNTPL = new HNTPLPage('Login');
 		self::run_page($HNTPL, array('login'), array('postToPath' => '?' . self::make_getVars(array('logout'))));
+		self::InsertDebugStats();
 		echo $HNTPL;
 	}
 
@@ -314,35 +325,93 @@ class Loader
 	* and calls functions that occur on login.
 	*/
 	private static function login_end() {
-		// Check the login is correct
-		$user = HNMySQL::escape($_REQUEST['login_user']);
-		$pass = HNMySQL::escape(md5($_POST['login_pass']));
-		//$pass2 = HNMySQL::escape(hash('sha256', $_POST['login_pass']));
-		// Note: The pipe in the following query is to stop problems with strange trailing chars being ignored
-		$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND '
-			.'`password`="' .$pass. '"'
-			//.'(`password`="' .$pass. '" OR `password`="' .$pass2. '")'
-			.' LIMIT 1';
-		$result = HNMySQL::query($sql);
-
-		// Was login successful?
-		if (!$result || $result->num_rows != 1) {
-			// Record login Failure to login record
-			self::login_logit(true, false);
-			
-			// Set error message
-			$_SESSION['error'] = 'Login Failed!';
-			
-			// Clear variables that could be holding the password that was entered
-			unset( $_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass'] );
-			return;
-		}
+		$username = $_REQUEST['login_user'];
+		$password = LOGIN_PRESALT . $_POST['login_pass'] . LOGIN_POSTSALT;
+		unset( $_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass'] );
 		
-		$row = $result->fetch_row();
+		if (preg_match('/^(.*)@example.com$/', $username, $matches)) {
+			// Using LDAP login
+			$username = 'uid=' .HNLDAP::escape($matches[1]). ',ou=People,dc=example,dc=com';
+			
+			// Check login to LDAP succeeds
+			try {
+				HNLDAP::close();
+				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, $username, $password, LDAP_PORT);
+			} catch (HNDBException $e) {
+				error('Incorrect Username or Password Entered.');
+				if (DEBUG)
+					throw $e;
+				return;
+			} catch (Exception $e) {
+				error('Cannot connect to LDAP server.');
+				if (DEBUG)
+					throw $e;
+				return;
+			}
+			
+			// Check that the user was of staff type
+			$uuo = HNOBJBasic::loadObject('mojo_user', $username);
+			if ($uuo['employeetype'][0] != 'ps') {
+				error('The login supplied did not have required permission.');
+				return;
+			}
+			
+			// Login is OK so we need to prepare our normal DB
+			if (count($uuo['users']) == 0) {
+				$uo = $uuo['users']->addNew();
+				$uo['role'] = 'Unit Coordinator';
+				$uo->save();
+				$uuo->load();
+			}
+			$uo = $uuo['users'][0];
+			$GLOBALS['uo'] = $uo;
+			
+			// Copy all required data to mysql object
+			$fromTo = array(
+				'username' => 'uid',
+				'email' => 'mail',
+				'first_name' => 'givenname',
+				'last_name' => 'sn',
+				);
+			foreach ($fromTo as $to => $from) {
+				if (!empty($uuo[$from][0]))
+					$uo[$to] = $uuo[$from][0];
+			}
+			
+			// Save
+			$uo->save();
+			$userid = $uo->getId();
+		} else {
+			// Using MySQL user login
+			
+			// Check the login is correct
+			$user = HNMySQL::escape($username);
+			$pass = HNMySQL::escape(md5($password));
+			//$pass2 = HNMySQL::escape(hash('sha256', $password));
+			// Note: The pipe in the following query is to stop problems with strange trailing chars being ignored
+			$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND '
+				.'`password`="' .$pass. '"'
+				//.'(`password`="' .$pass. '" OR `password`="' .$pass2. '")'
+				.' LIMIT 1';
+			$result = HNMySQL::query($sql);
+
+			// Was login successful?
+			if (!$result || $result->num_rows != 1) {
+				// Record login Failure to login record
+				self::login_logit(true, false);
+				
+				// Set error message
+				error('Incorrect Username or Password Entered.');
+				return;
+			}
+			
+			$row = $result->fetch_row();
+			$userid = $row[0];
+		}
 		
 		// If successful we prepair to go back into the main of the website
 		// Setup session so the rest of the program knows we are logged in
-		$_SESSION['UserLoggedIn'] = $row[0];
+		$_SESSION['UserLoggedIn'] = $userid;
 		$_SESSION['UserLastSeen'] = time();
 		$_SESSION['UserSessionId'] = session_id();
 		

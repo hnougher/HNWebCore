@@ -26,7 +26,9 @@ class HNLDAP extends HNDB
 
 	/**
 	* Initiates the mysqli object for use.
-	*
+	* 
+	* CAUTION: DO NOT LEAVE THESE EXCEPTIONS UNCAUGHT! THEY CONTAIN THE PASSWORD!!
+	* 
 	* @param string $host The LDAP server hostname
 	* @param string $version The LDAP server version
 	* @param string $bind_rdn OPTIONAL The LDAP server RDN
@@ -38,13 +40,22 @@ class HNLDAP extends HNDB
 		self::$conn = ldap_connect($host, $port);
 		if (self::$conn === false) {
 			// Failed to connect to database
-			die('Cannot Connect to LDAP Host: ' .$host);
+			throw new HNDBException('Cannot Connect to LDAP Host: ' .$host, HNDBException::CANT_CONNECT);
 		}
 		ldap_set_option(self::$conn, LDAP_OPT_PROTOCOL_VERSION, $version);
+		
+		ob_start(); // Curse the warning which cannot be suppressed
 		if (!ldap_bind(self::$conn, $rdn, $pass)) {
+			ob_end_clean();
 			// Failed to bind
-			die('Cannot Bind to LDAP Host: ' .$host);
+			throw new HNDBException('Cannot Bind to LDAP Host: ' .$host, HNDBException::CANT_CONNECT);
 		}
+		ob_end_clean();
+	}
+
+	public static function close() {
+		self::running(true);
+		ldap_close(self::$conn);
 	}
 
 	/**
