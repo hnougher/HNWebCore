@@ -125,14 +125,13 @@ class HNTPLMainTypes extends HNTPLCore
 	}
 
 	/**
-	* Adds a new selecto.
+	* Adds a new selector.
 	* 
 	* @see HNTPLSelector::__construct()
 	*/
-	public function new_selector( $searchSQL, $uri, $fieldNames = array() )
-	{
-		$content = new HNTPLSelector( $searchSQL, $uri, $fieldNames );
-		$this->new_raw( $content );
+	public function new_selector($type, $queryCode, $uri, $fieldNames = array()) {
+		$content = new HNTPLSelector($type, $queryCode, $uri, $fieldNames);
+		$this->new_raw($content);
 		return $content;
 	}
 

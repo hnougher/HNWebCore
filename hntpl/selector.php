@@ -12,17 +12,27 @@
 */
 
 require_once TEMPLATE_PATH. '/core.php';
-require_once TEMPLATE_PATH. '/lists.php';
 
 /**
 * This class gives the functionality of creating dynamic forms easily.
-* AJAX parts work in with the core functionality of HNWebbase.
+* AJAX parts work in with the core functionality of HNWebCore.
 * 
 * @see HNTPLCore
 */
 class HNTPLSelector extends HNTPLCore
 {
+	// Just displays the query on one page
+	const TYPE_BASIC = 'basic';
+	// Just displays the query with pagination
+	const TYPE_BASICPAGE = 'basicp';
+	// Displays a search box which sends one parameter to the query via AJAX
+	const TYPE_SEARCH = 'search';
+	// Same as TYPE_SEARCH with pagination
+	const TYPE_SEARCHPAGE = 'searchp';
+	#const TYPE_FILTER = 'filter';
 
+	private $type;
+	private $queryCode;
 	private $uri;
 	private $fieldNames;
 
@@ -30,20 +40,23 @@ class HNTPLSelector extends HNTPLCore
 	private $noResultText = 'Nothing was found with the search term.';
 
 	/**
-	* @param string $searchSQL This is the SQL query that is used for the this selector.
-	* 		Use the keyword "--searchText--" which will be replaced with the search text.
-	* 		SELECT return names is not used so dont both with them.
-	* 		The first 'field' is used as the ID with will be sent to the after URI.
-	* 			eg: SELECT `userid`, `username` FROM `user` WHERE `username` LIKE "%--searchText--%" LIMIT 30
-	* @param string $uri The location to send the selected ID.
+	* @param $type One of the TYPE_* consts of this class.
+	* @param $queryCode The query code returns by StoreAJAXQuery.
+	*   The stored query should follow the rules of the TYPE picked.
+	*   All types need to have the first return parameter as the ID field for not displaying but gets put into the URI.
+	*   TYPE_BASIC should have no params.
+	*   TYPE_BASICPAGE should have one param, the page number.
+	*   TYPE_SEARCH should have one param, the search string.
+	*   TYPE_SEARCHPAGE should have two params, first is the search string, the second is the page number.
+	* @param $uri The location to send the selected ID.
 	* 		Do not include hostnames or leading slash.
-	* 		Keyword --ID-- is replaced with the ID in the SQL results.
+	* 		Keyword --ID-- is replaced with the first field in the SQL results.
 	* 		eg: client/review?client=--ID--&course=1
 	* @param array $fieldNames The field names for the columns defined in the SQL.
 	*/
-	public function __construct( $searchSQL, $uri, $fieldNames = array() )
-	{
-		$_SESSION['AJAX_SQL'] = $searchSQL;
+	public function __construct($type, $queryCode, $uri, $fieldNames = array()) {
+		$this->type = $type;
+		$this->queryCode = $queryCode;
 		$this->uri = $uri;
 		$this->fieldNames = $fieldNames;
 	}
@@ -54,8 +67,7 @@ class HNTPLSelector extends HNTPLCore
 	* @param string $text
 	* @uses $emptyText
 	*/
-	public function set_empty_text( $text )
-	{
+	public function set_empty_text($text) {
 		$this->emptyText = $text;
 	}
 
@@ -65,8 +77,7 @@ class HNTPLSelector extends HNTPLCore
 	* @param string $text
 	* @uses $noResultText
 	*/
-	public function set_noresult_text( $text )
-	{
+	public function set_noresult_text($text) {
 		$this->noResultText = $text;
 	}
 
@@ -80,114 +91,105 @@ class HNTPLSelector extends HNTPLCore
 	* @uses $content Each value processed and outputed into the form style.
 	* @uses print_tag() Used for the tag processing.
 	*/
-	public function output( $capture = false, $attrib = false )
-	{
-		if( $capture )
+	public function output($capture = false, $attrib = false) {
+		if($capture)
 			ob_start();
 
 ?>
 
 
-<form id="searcher" method="post" target="search_result" <?php echo self::attributes( $attrib ); ?>>
-<table>
-	<tr>
-		<td>Enter some search text:</td>
-		<td><input type="text" name="srch" id="srch" autocomplete="off"/></td>
-		<td><input type="submit" value="Search"/></td>
-	</tr>
-	<tr><td id="content" colspan="3">
-		<i><?php echo $this->emptyText; ?></i>
-		<iframe name="search_result"></iframe>
-	</td></tr>
-</table>
+<form id="selector<?php echo $this->queryCode; ?>" class="selector" method="post" <?php echo self::attributes($attrib); ?>>
+	<input type="hidden" name="q" value="<?php echo $this->queryCode; ?>"/>
+	<?php if ($this->type == self::TYPE_SEARCH || $this->type == self::TYPE_SEARCHPAGE) { ?>
+		<table class="selector_searchbox"><tr>
+			<td>Enter some search text:</td>
+			<td><input type="text" name="p[]" id="srch" autocomplete="off"/></td>
+			<td><input type="submit" value="Search"/></td>
+		</tr></table>
+	<?php } ?>
+	<table>
+		<tr><td id="content" colspan="3">
+			<i><?php echo $this->emptyText; ?></i>
+		</td></tr>
+	</table>
 </form>
 
 <script type="text/javascript">
-var searcher_timeout = null;
-var searcher_delay = function()
-{
-	if( searcher_timeout )
-		window.clearTimeout( searcher_timeout );
-	searcher_timeout = window.setTimeout( searcher, 500 );
-};
-var searcher = function()
-{
-	window.clearTimeout( searcher_timeout );
-	var tx = $("#search_text").val();
+(function(){
+	var $selector = $("#selector<?php echo $this->queryCode; ?>");
+	var selector_timeout = null;
+	var selector_delay = function() {
+		if (selector_timeout)
+			window.clearTimeout(selector_timeout);
+		selector_timeout = window.setTimeout(selector, 500);
+	};
+	var selector = function(e) {
+		window.clearTimeout(selector_timeout);
+		$.get("<?php echo SERVER_ADDRESS; ?>/ajax.php", $selector.serialize(), selector2, "json");
+		if (e) e.preventDefault();
+		return false;
+	};
+	var selector2 = function(data) {
+		var out = "";
+		if (data.length == 0) {
+			out += "<i><?php echo $this->noResultText; ?></i>";
+		} else {
+			out += "<table>";
+			<?php
 
-	$.get( "<?php echo $_SERVER['REQUEST_URI']; ?>", $("#searcher").serialize() + "&ajax=1", searcher2, "json" );
-
-	return false;
-};
-var searcher2 = function( data )
-{
-	var out = "";
-	if( data.length == 0 )
-	{
-		out += "<i><?php echo $this->noResultText; ?></i>";
-	}
-	else
-	{
-		out += "<table>";
-		<?php
-
-		if( count( $this->fieldNames ) > 0 )
-		{
-			echo 'out += "<tr>';
-			foreach( $this->fieldNames AS $field )
-			{
-				echo '<th>' .$field. '</th>';
+			if (count($this->fieldNames) > 0) {
+				echo 'out += "<tr>';
+				foreach ($this->fieldNames AS $field) {
+					echo '<th>' .$field. '</th>';
+				}
+				echo '</tr>";';
 			}
-			echo '</tr>";';
+
+			?>
+			var i, j;
+			for (i = 0; i < data.length; i++) {
+				var pointTo = "<?php
+					$tmp = explode('--ID--', $this->uri, 2);
+					echo $tmp[0];
+					echo '" + data[i][0] + "';
+					if (isset($tmp[1]))
+						echo $tmp[1];
+					?>";
+
+				// If IE6 Hacks Enabled
+				var ieHack = "";
+				if (typeof(window["IERowMouseOver"]) != "undefined")
+					ieHack = " onmouseover='IERowMouseOver()' onmouseout='IERowMouseOut()' style='cursor: pointer'";
+
+				out += "<tr onclick='document.location = \"" + pointTo + "\"'" + ieHack + ">";
+				for (j = 1; j < data[i].length; j++) {
+					if (data[i][j] == null)
+						data[i][j] = "";
+					out += "<td style='text-align: center'>" + data[i][j] + "</td>";
+				}
+				out += "</tr>";
+			}
+			out += "</table>";
 		}
 
-		?>
-		var i, j;
-		for( i = 0; i < data.length; i++ )
-		{
-			var pointTo = "<?php
-				$tmp = explode( '--ID--', $this->uri, 2 );
-				echo $tmp[0];
-				echo '" + data[i][0] + "';
-				if( isset( $tmp[1] ) )
-					echo $tmp[1];
-				?>";
+		$selector.find("#content").html(out);
+	};
 
-			// If IE6 Hacks Enabled
-			var ieHack = "";
-			if( typeof(window["IERowMouseOver"]) != "undefined" )
-				ieHack = " onmouseover='IERowMouseOver()' onmouseout='IERowMouseOut()' style='cursor: pointer'";
+	$(document).ready(function() {
+		$selector.find("#srch").bind("keyup", selector_delay);
+		$selector.bind("submit", selector);
 
-			out += "<tr onclick='document.location = \"" + pointTo + "\"'" + ieHack + ">";
-			for( j = 1; j < data[i].length; j++ )
-			{
-				if( data[i][j] == null )
-					data[i][j] = "";
-				out += "<td style='text-align: center'>" + data[i][j] + "</td>";
-			}
-			out += "</tr>";
-		}
-		out += "</table>";
-	}
-
-	$("#content").html( out );
-};
-
-$(document).ready(function() {
-	$("#content").html( "<i><?php echo $this->emptyText; ?></i>" );
-	$("#srch").bind( "keyup", searcher_delay );
-	$("#searcher").bind( "submit", searcher );
-});
-
-// Perload
-searcher();
+		// Preload
+		selector();
+	});
+})();
 </script>
 
 <?php
 
 		parent::output();
 
-		if( $capture )
+		if ($capture)
 			return ob_get_clean();
 	}
 }

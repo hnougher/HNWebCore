@@ -44,6 +44,25 @@ class HNMySQL extends HNDB
 	}
 
 	/**
+	* Prepares a MySQLi Statement.
+	* NOTE: Its a good idea to free_result() or close() the statement after finishing with a execution.
+	* 
+	* @param $sql The SQL which is directly used to create the statement.
+	*/
+	public static function prepare($sql) {
+		self::running(true);
+		$stmt = self::$conn->prepare($sql);
+		if (!$stmt) {
+			if (DEBUG)
+				throw new HNDBException('Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY);
+			else
+				throw new HNDBException('Query Error: ' .self::$conn->error, HNDBException::BAD_QUERY);
+		}
+		$stmt->attr_set(MYSQLI_STMT_ATTR_PREFETCH_ROWS, 10); // Prefetch 10 rows at a time from server when using cursor
+		return $stmt;
+	}
+
+	/**
 	* Processes the Query
 	*
 	* @param string $sql The sql to be processed
@@ -57,7 +76,7 @@ class HNMySQL extends HNDB
 		$result = self::$conn->query($sql, $resultMode);
 		if ($result === false) {
 			if (DEBUG)
-				throw new HNDBException( 'Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY );
+				throw new HNDBException('Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY);
 			else
 				throw new HNDBException('Query Error: ' .self::$conn->error, HNDBException::BAD_QUERY);
 		}

@@ -32,17 +32,16 @@ require_once CLASS_PATH. '/FieldList.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
 require_once CLASS_PATH. '/HNAutoQuery.class.php';
-require_once 'hntpl/page.php';
+require_once TEMPLATE_PATH. '/page.php';
 if (LDAP_ENABLED) {
 	require_once CLASS_PATH. '/HNLDAP.class.php';
 	require_once CLASS_PATH. '/HNLDAPBasic.obj.class.php';
 }
 
-$GLOBALS['user_types'] = array( 'login' => true );
-
 // This is where everything actually starts for HNWebCore
 Loader::initiate();
 
+// Error and Confirm message functions
 function confirm($message) {
 	if (empty($_SESSION['confirm']))
 		$_SESSION['confirm'] = array();
@@ -59,6 +58,38 @@ function isFalse($condition, $message) {
 	return !$condition;
 }
 
+// AJAX stored query functions
+/**
+* This function is used to store a query in $_SESSION.
+* It returns a basicallly random code for use within JS.
+* NOTE: This function will get *very* slow when lots are stored.
+* NOTE: Stored querys get cleared when session ends (logout or timeout).
+*
+* @param $sql The SQL which is of the style of a MySQLi Statement.
+* @param $types The string of types that a MySQLi Statement requires.
+* @return string unique code which is to be put into a JS request to the URI like
+*      "/ajax.php?q=<code>&p[]=<param1>&p[]=<param2>" which when called returns a
+*      JSON array of results.
+*/
+function StoreAJAXQuery($sql, $types = '') {
+	if (empty($_SESSION['AJAX_QUERIES']))
+		$_SESSION['AJAX_QUERIES'] = array();
+	
+	// Check if this query already exists in the stored set.
+	foreach ($_SESSION['AJAX_QUERIES'] as $k => $v) {
+		if ($v[1] == $types && $v[0] == $sql)
+			return $k;
+	}
+	
+	// Generate unique code
+	do {
+		$code = substr(md5(SERVER_ADDRESS . mt_rand(0, PHP_INT_MAX)), 16);
+	} while (isset($_SESSION['AJAX_QUERIES'][$code]));
+	
+	// Store the query and return code
+	$_SESSION['AJAX_QUERIES'][$code] = array($sql, $types);
+	return $code;
+}
 
 /**
 * The website loader class.
@@ -95,9 +126,8 @@ class Loader
 				return;
 			}
 		}
-		
+
 		// Collect the normal vars from the input
-		$ajax = isset($_REQUEST['ajax']) ? intval($_REQUEST['ajax']) : false;
 		$query = !empty($_GET['autoquery']) ? explode('/', $_GET['autoquery']) : array('root');
 		if (empty($query[count($query) - 1]))
 			array_pop($query);
@@ -112,7 +142,6 @@ class Loader
 			self::login_end();
 
 		// Clean up the input lists for security sake
-		unset($_GET['ajax'], $_POST['ajax'], $_REQUEST['ajax']);
 		unset($_GET['login'], $_POST['login'], $_REQUEST['login']);
 		unset($_GET['logout'], $_POST['logout'], $_REQUEST['logout']);
 		unset($_GET['autoquery'], $_POST['autoquery'], $_REQUEST['autoquery']);
@@ -144,49 +173,8 @@ class Loader
 			unset($thisParam, $thisKey);
 		}
 
-		// If AJAX we will stop after we do this piece of code
-		// This is expected to be a replay to a quick query like getting data from an SQL statement.
-		// We do it here so processing is MINIMAL and log entries are not created on every keypress.
-		if ($ajax > 0) {
-			// Use the cached SQL statement
-			if (empty($_SESSION['AJAX_SQL'])) {
-				echo 'No Query Set';
-				return;
-			}
-			$sql = $_SESSION['AJAX_SQL'];
-
-			// Replace Varibles
-			$pattern = array(
-				'/--searchText--/',
-				);
-			$replace = array(
-				HNMySQL::escape($_REQUEST['srch']),
-				);
-			$sql = preg_replace($pattern, $replace, $sql);
-
-			// Run Query
-			$result = HNMySQL::query($sql);
-
-			// Collect Data
-			$data = array();
-			while ($row = $result->fetch_row())
-				$data[] = $row;
-
-			// Print Result
-			if ($ajax == 1) {
-				// If $ajax is 1 then JSON is expected
-				echo json_encode($data);
-			} else {
-				// Unknown
-				echo 'Unknown Return Type';
-			}
-
-			// Do Not Continue
-			return;
-		}
-		
 		// Display the page
-		$HNTPL = new HNTPLPage(SITE_TITLE, $ajax);
+		$HNTPL = new HNTPLPage(SITE_TITLE, false);
 		$return = self::run_page($HNTPL, $query, array('uo' => $uo));
 
 		// Check if we are redirecting
