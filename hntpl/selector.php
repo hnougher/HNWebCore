@@ -236,7 +236,7 @@ class HNTPLSelector extends HNTPLCore
 				
 				for (var i = 0; i < rowdata.length; i++) {
 					var $tr = $("<tr/>");
-					$base.append($tr);
+					$table.append($tr);
 
 					// If IE6 Hacks Enabled
 					if (typeof(window["IERowMouseOver"]) != "undefined" && typeof(window["IERowMouseOut"]) != "undefined"){ 
