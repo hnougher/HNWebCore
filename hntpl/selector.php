@@ -38,6 +38,9 @@ class HNTPLSelector extends HNTPLCore
 	private $fieldNames;
 	private $queryCodeCounter;
 
+	private $headDisplayMethod = 'headDisplayDefault';
+	private $rowOnclickMethod = 'rowOnclickDefault';
+	private $rowDisplayMethod = 'rowDisplayDefault';
 	private $emptyText = 'Enter some text above to start searching.';
 	private $noResultText = 'Nothing was found with the search term.';
 
@@ -61,6 +64,38 @@ class HNTPLSelector extends HNTPLCore
 		$this->queryCode = $queryCode;
 		$this->uri = $uri;
 		$this->fieldNames = $fieldNames;
+	}
+
+	/**
+	* @param string $jsFuncName The JS function name which takes one parameter, the ID of the row clicked.
+	* @uses $rowOnclickMethod
+	*/
+	public function set_row_onclick_method($jsFuncName) {
+		if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_\.\-]*$/', $jsFuncName))
+			throw new Exception("Invalid characters in row onclick method");
+		$this->rowOnclickMethod = $jsFuncName;
+	}
+
+	/**
+	* @param string $jsFuncName The JS function name which takes two parameters, the parent tr object
+	*    wrapped in jQuery, and the JSON data for the row.
+	* @uses $rowDisplayMethod
+	*/
+	public function set_head_display_method($jsFuncName) {
+		if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_\.\-]*$/', $jsFuncName))
+			throw new Exception("Invalid characters in head display method");
+		$this->headDisplayMethod = $jsFuncName;
+	}
+
+	/**
+	* @param string $jsFuncName The JS function name which takes two parameters, the parent tr object
+	*    wrapped in jQuery, and the JSON data for the row.
+	* @uses $rowDisplayMethod
+	*/
+	public function set_row_display_method($jsFuncName) {
+		if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_\.\-]*$/', $jsFuncName))
+			throw new Exception("Invalid characters in row display method");
+		$this->rowDisplayMethod = $jsFuncName;
 	}
 
 	/**
@@ -125,38 +160,40 @@ class HNTPLSelector extends HNTPLCore
 			$pageChanger .= '<button class="pageCtrlLast">Last</button>';
 			$pageChanger .= '</div>';
 		}
+ 
+		echo '<form id="selector' .$this->queryCode. '" class="selector" method="post" ' .self::attributes($attrib). '>';
+			if ($this->type & self::TYPE_SEARCH) {
+				echo '<table class="selector_searchbox"><tr>';
+					echo '<td>Enter some search text:</td>';
+					echo '<td><input type="text" id="srch" autocomplete="off"/></td>';
+					echo '<td><input type="submit" value="Search"/></td>';
+				echo '</tr></table>';
+			}
+			echo $pageChanger;
+			echo '<div id="content"><i>' .$this->emptyText. '</i></div>';
+			echo $pageChanger;
+			
+			echo '<input type="hidden" name="q" value="' .$this->queryCode. '"/>';
+			if ($this->type & self::TYPE_SEARCH)
+				echo '<input type="hidden" name="p[]" class="srchp" value=""/>';
+			if ($this->type & self::TYPE_PAGE) {
+				echo '<input type="hidden" name="p[]" id="rowoffset" value="0"/>';
+				echo '<input type="hidden" name="p[]" id="perpage" value="30"/>';
+				echo '<input type="hidden" id="totalrows" value="0"/>';
+				echo '<input type="hidden" name="q1" value="' .$this->queryCodeCounter. '"/>';
+				if ($this->type & self::TYPE_SEARCH)
+					echo '<input type="hidden" name="p1[]" class="srchp" value=""/>';
+			}
+		echo '</form>';
 ?>
-
-
-<form id="selector<?php echo $this->queryCode; ?>" class="selector" method="post" <?php echo self::attributes($attrib); ?>>
-	<?php if ($this->type & self::TYPE_SEARCH) { ?>
-		<table class="selector_searchbox"><tr>
-			<td>Enter some search text:</td>
-			<td><input type="text" id="srch" autocomplete="off"/></td>
-			<td><input type="submit" value="Search"/></td>
-		</tr></table>
-	<?php }
-	echo $pageChanger; ?>
-	<table>
-		<tr><td id="content" colspan="3">
-			<i><?php echo $this->emptyText; ?></i>
-		</td></tr>
-	</table>
-	<?php echo $pageChanger; ?>
-	
-	<input type="hidden" name="q" value="<?php echo $this->queryCode; ?>"/>
-	<input type="hidden" name="p[]" class="srchp" value=""/>
-	<?php if ($this->type & self::TYPE_PAGE) { ?>
-		<input type="hidden" name="p[]" id="rowoffset" value="0"/>
-		<input type="hidden" name="p[]" id="perpage" value="30"/>
-		<input type="hidden" id="totalrows" value="0"/>
-		<input type="hidden" name="q1" value="<?php echo $this->queryCodeCounter; ?>"/>
-		<input type="hidden" name="p1[]" class="srchp" value=""/>
-	<?php } ?>
-</form>
 
 <script type="text/javascript">
 (function(){
+	var setting = <?php echo json_encode(array(
+		'fieldNames' => $this->fieldNames,
+		'noResultText' => $this->noResultText,
+		'uri' => $this->uri,
+		)); ?>;
 	var $selector = $("#selector<?php echo $this->queryCode; ?>");
 	var selector_timeout = null;
 	var selector_delay = function() {
@@ -175,50 +212,47 @@ class HNTPLSelector extends HNTPLCore
 		return false;
 	};
 	var selector2 = function(data) {
-		var out = "";
+		var $base = $('<div id="content"/>');
 		if (data.length == 0) {
-			out += "<i><?php echo $this->noResultText; ?></i>";
+			var $i = $("<i/>");
+			$i.html(setting.noResultText);
+			$base.html($i);
 		} else {
 			var rowdata = data[0];
 			if (rowdata.length == 0) {
-				out += "<i><?php echo $this->noResultText; ?></i>";
+				var $i = $("<i/>");
+				$i.html(setting.noResultText);
+				$base.html($i);
 			} else {
-				out += "<table>";
-				<?php
-
-				if (count($this->fieldNames) > 0) {
-					echo 'out += "<tr>';
-					foreach ($this->fieldNames AS $field) {
-						echo '<th>' .$field. '</th>';
-					}
-					echo '</tr>";';
+				var $table = $("<table/>");
+				$base.append($table);
+				
+				// Column Headings
+				if (setting.fieldNames.length > 0) {
+					var $tr = $("<tr/>");
+					$table.append($tr);
+					<?php echo $this->headDisplayMethod; ?>($tr, setting.fieldNames);
 				}
-
-				?>
-				var i, j;
-				for (i = 0; i < rowdata.length; i++) {
-					var pointTo = "<?php
-						$tmp = explode('--ID--', $this->uri, 2);
-						echo $tmp[0];
-						echo '" + rowdata[i][0] + "';
-						if (isset($tmp[1]))
-							echo $tmp[1];
-						?>";
+				
+				for (var i = 0; i < rowdata.length; i++) {
+					var $tr = $("<tr/>");
+					$base.append($tr);
 
 					// If IE6 Hacks Enabled
-					var ieHack = "";
-					if (typeof(window["IERowMouseOver"]) != "undefined" && typeof(window["IERowMouseOut"]) != "undefined")
-						ieHack = " onmouseover='IERowMouseOver()' onmouseout='IERowMouseOut()' style='cursor: pointer'";
-
-					out += "<tr onclick='document.location = \"" + pointTo + "\"'" + ieHack + ">";
-					for (j = 1; j < rowdata[i].length; j++) {
-						if (rowdata[i][j] == null)
-							rowdata[i][j] = "";
-						out += "<td style='text-align: center'>" + rowdata[i][j] + "</td>";
+					if (typeof(window["IERowMouseOver"]) != "undefined" && typeof(window["IERowMouseOut"]) != "undefined"){ 
+						$tr.on("mouseover", IERowMouseOver);
+						$tr.on("mouseout", IERowMouseOut);
+						$tr.css("cursor", "pointer");
 					}
-					out += "</tr>";
+
+					(function(){
+						// To copy rowID for each row
+						var rowID = rowdata[i][0];
+						$tr.on("click", function(){<?php echo $this->rowOnclickMethod; ?>(rowID)});
+					})();
+					$tr.addClass("clickable");
+					<?php echo $this->rowDisplayMethod; ?>($tr, rowdata[i]);
 				}
-				out += "</table>";
 			}
 			
 			if (data.length >= 2) {
@@ -228,8 +262,31 @@ class HNTPLSelector extends HNTPLCore
 		}
 		
 		<?php if ($this->type & self::TYPE_PAGE) echo "pageCtrlUpdate();"; ?>
-		$selector.find("#content").html(out);
+		$selector.find("#content").replaceWith($base);
 	};
+	<?php if ($this->rowOnclickMethod == "rowOnclickDefault") { ?>
+	function rowOnclickDefault(rowID) {
+		document.location = setting.uri.replace("--ID--", rowID);
+	};
+	<?php } ?>
+	<?php if ($this->headDisplayMethod == "headDisplayDefault") { ?>
+	function headDisplayDefault($tr, fieldNames) {
+		for (var i = 0; i < fieldNames.length; i++) {
+			var $th = $("<th/>");
+			$tr.append($th);
+			$th.html(fieldNames[i]);
+		}
+	};
+	<?php } ?>
+	<?php if ($this->rowDisplayMethod == "rowDisplayDefault") { ?>
+	function rowDisplayDefault($tr, rowdata) {
+		for (var i = 1; i < rowdata.length; i++) {
+			var $td = $("<td/>");
+			$tr.append($td);
+			$td.html(rowdata[i]);
+		}
+	};
+	<?php } ?>
 	<?php if ($this->type & self::TYPE_PAGE) { ?>
 	function pageCtrl(type) {
 		var $rowoffset = $selector.find("#rowoffset");
@@ -279,10 +336,12 @@ class HNTPLSelector extends HNTPLCore
 		
 		$selector.find(".pageCtrlInfo").html("Page " + curpage + " of " + totalpage);
 
-		if (totalpage == 1 && $selector.find("#srch").val() == "")
-			$selector.find(".pageCtrl").hide();
-		else
-			$selector.find(".pageCtrl").show();
+		if ($selector.find("#srch").val() == "") {
+			if (totalpage == 1)
+				$selector.find(".pageCtrl").hide();
+			else
+				$selector.find(".pageCtrl").show();
+		}
 		if (curpage == 1)
 			$selector.find(".pageCtrlFirst,.pageCtrlPrev").attr("disabled", "disabled");
 		else

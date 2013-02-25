@@ -78,18 +78,23 @@ for ($i = 0; $i < $totalQueries; $i++) {
 		echo ',';
 	echo '[';
 	$doneFirst = false;
-	$result = $stmt->get_result();
-	while ($row = $result->fetch_row()) {
+	$aarray = array();
+	$barray = array();
+	for ($x = 0; $x < $stmt->field_count; $x++) {
+		$aarray[] = '';
+		$barray[] = &$aarray[$x];
+	}
+	call_user_func_array(array($stmt, 'bind_result'), $barray);
+	while ($stmt->fetch()) {
 		if ($doneFirst)
 			echo ',';
 		else
 			$doneFirst = true;
-		echo json_encode($row);
+		echo json_encode($barray);
 	}
 	echo ']';
 
 	// Clean up for the sake of it
-	$result->free();
 	$stmt->close();
 }
 
