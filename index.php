@@ -374,13 +374,9 @@ class Loader
 			
 			// Check the login is correct
 			$user = HNMySQL::escape($username);
-			$pass = HNMySQL::escape(md5($password));
-			//$pass2 = HNMySQL::escape(hash('sha256', $password));
+			$pass = HNMySQL::escape(hash(LOGIN_HASHALG, $password));
 			// Note: The pipe in the following query is to stop problems with strange trailing chars being ignored
-			$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND '
-				.'`password`="' .$pass. '"'
-				//.'(`password`="' .$pass. '" OR `password`="' .$pass2. '")'
-				.' LIMIT 1';
+			$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND `password`="' .$pass. '" LIMIT 1';
 			$result = HNMySQL::query($sql);
 
 			// Was login successful?

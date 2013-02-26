@@ -22,6 +22,7 @@ $config = array(
 	'LOGIN_TIMEOUT'		=> 1200,
 	'LOGIN_PRESALT'		=> '',
 	'LOGIN_POSTSALT'	=> '',
+	'LOGIN_HASHALG'		=> 'md5', // See PHP hash() or hash_algos()
 
 	'SERVER_IDENT'		=> 'HNWebCore',
 	'SERVER_ADDRESS'	=> 'http://localhost/HNWebCore',
