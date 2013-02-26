@@ -21,16 +21,12 @@ require_once TEMPLATE_PATH. '/core.php';
 */
 class HNTPLSelector extends HNTPLCore
 {
-	// Just displays the query on one page
-	const TYPE_BASIC = 0x0000;
-	// Just displays the query with pagination
-	const TYPE_PAGE = 0x0001;
-	const TYPE_BASICPAGE = 0x0001;
-	// Displays a search box which sends one parameter to the query via AJAX
-	const TYPE_SEARCH = 0x0002;
-	// Same as TYPE_SEARCH with pagination
-	const TYPE_SEARCHPAGE = 0x0003;
-	#const TYPE_FILTER = 'filter';
+	// Base level bitfield, can be OR'd together as a type
+	const TYPE_BASIC	= 0x0000;	// No extras
+	const TYPE_PAGE		= 0x0001;	// Page controls
+	const TYPE_SEARCH	= 0x0002;	// Search box
+	const TYPE_FILTER	= 0x0004;	// Per field filter/search
+	const TYPE_ORDER	= 0x0008;	// Column ordering
 
 	private $type;
 	private $queryCode;
@@ -176,6 +172,10 @@ class HNTPLSelector extends HNTPLCore
 			echo '<input type="hidden" name="q" value="' .$this->queryCode. '"/>';
 			if ($this->type & self::TYPE_SEARCH)
 				echo '<input type="hidden" name="p[]" class="srchp" value=""/>';
+			if ($this->type & self::TYPE_ORDER) {
+				echo '<input type="hidden" name="p[]" class="orderp" value=""/>';
+				echo '<input type="hidden" name="p[]" class="orderp" value=""/>';
+			}
 			if ($this->type & self::TYPE_PAGE) {
 				echo '<input type="hidden" name="p[]" id="rowoffset" value="0"/>';
 				echo '<input type="hidden" name="p[]" id="perpage" value="30"/>';
@@ -195,6 +195,7 @@ class HNTPLSelector extends HNTPLCore
 		'uri' => $this->uri,
 		)); ?>;
 	var $selector = $("#selector<?php echo $this->queryCode; ?>");
+	var $tablehead = false;
 	var selector_timeout = null;
 	var selector_delay = function() {
 		if (selector_timeout)
@@ -229,9 +230,9 @@ class HNTPLSelector extends HNTPLCore
 				
 				// Column Headings
 				if (setting.fieldNames.length > 0) {
-					var $tr = $("<tr/>");
-					$table.append($tr);
-					<?php echo $this->headDisplayMethod; ?>($tr, setting.fieldNames);
+					$tablehead = $('<tr id="tablehead"/>');
+					<?php echo $this->headDisplayMethod; ?>($tablehead, setting.fieldNames);
+					$table.append($tablehead);
 				}
 				
 				for (var i = 0; i < rowdata.length; i++) {
@@ -271,12 +272,36 @@ class HNTPLSelector extends HNTPLCore
 	<?php } ?>
 	<?php if ($this->headDisplayMethod == "headDisplayDefault") { ?>
 	function headDisplayDefault($tr, fieldNames) {
+		var curOrderIndex = $(".orderp").val();
 		for (var i = 0; i < fieldNames.length; i++) {
 			var $th = $("<th/>");
 			$tr.append($th);
+			<?php if ($this->type & self::TYPE_ORDER) { ?>
+			(function(){
+				var newIndex = i+2;
+				$th.addClass("clickable");
+				if (newIndex == curOrderIndex)
+					$th.addClass("orderASC");
+				if (-newIndex == curOrderIndex)
+					$th.addClass("orderDESC");
+				$th.on("click", {newIndex:newIndex}, columnOrderSet);
+			})();
+			<?php } ?>
 			$th.html(fieldNames[i]);
 		}
 	};
+	<?php } ?>
+	<?php if ($this->type & self::TYPE_ORDER) { ?>
+	function columnOrderSet(e) {
+		var event = jQuery.Event("orderchange");
+		event.newIndex = e.data.newIndex;
+		event.oldIndex = $(".orderp").val();
+		if (event.oldIndex == event.newIndex)
+			event.newIndex = -event.newIndex;
+		$(".orderp").val(event.newIndex);
+		$tablehead.trigger(event);
+		selector();
+	}
 	<?php } ?>
 	<?php if ($this->rowDisplayMethod == "rowDisplayDefault") { ?>
 	function rowDisplayDefault($tr, rowdata) {
