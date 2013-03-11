@@ -75,7 +75,7 @@ class HNTPLSelector extends HNTPLCore
 	/**
 	* @param string $jsFuncName The JS function name which takes two parameters, the parent tr object
 	*    wrapped in jQuery, and the JSON data for the row.
-	* @uses $rowDisplayMethod
+	* @uses $headDisplayMethod
 	*/
 	public function set_head_display_method($jsFuncName) {
 		if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_\.\-]*$/', $jsFuncName))

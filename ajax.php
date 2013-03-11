@@ -16,6 +16,7 @@ header('P3P:CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT
 
 // Session should already be started from index.php
 // If the session is not started then they should be able to access anything later
+$GLOBALS['ScriptStartTime'] = microtime(1);
 session_start();
 
 // Non-changable constants
@@ -73,30 +74,37 @@ for ($i = 0; $i < $totalQueries; $i++) {
 	if (!$stmt->execute())
 		die('Error: Statement failed to execute.');
 
-	// Collect result into JSON
 	if ($i > 0)
 		echo ',';
-	echo '[';
-	$doneFirst = false;
-	$aarray = array();
-	$barray = array();
-	for ($x = 0; $x < $stmt->field_count; $x++) {
-		$aarray[] = '';
-		$barray[] = &$aarray[$x];
+	if (substr($QUERY[0], 0, 6) == 'SELECT') {
+		// SELECT: Collect result into JSON
+		echo '[';
+		$doneFirst = false;
+		$aarray = array();
+		$barray = array();
+		for ($x = 0; $x < $stmt->field_count; $x++) {
+			$aarray[] = '';
+			$barray[] = &$aarray[$x];
+		}
+		call_user_func_array(array($stmt, 'bind_result'), $barray);
+		while ($stmt->fetch()) {
+			if ($doneFirst)
+				echo ',';
+			else
+				$doneFirst = true;
+			echo json_encode($barray);
+		}
+		echo ']';
+	} else {
+		// NOT SELECT: Return number of affected rows
+		echo $stmt->affected_rows;
 	}
-	call_user_func_array(array($stmt, 'bind_result'), $barray);
-	while ($stmt->fetch()) {
-		if ($doneFirst)
-			echo ',';
-		else
-			$doneFirst = true;
-		echo json_encode($barray);
-	}
-	echo ']';
 
 	// Clean up for the sake of it
 	$stmt->close();
 }
 
 // End outer array of JSON
+if (STATS)
+	printf(',"Total Script Time: %1.2e sec"', microtime(1) - $GLOBALS['ScriptStartTime']);
 echo ']';

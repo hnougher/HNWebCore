@@ -17,6 +17,7 @@
 // Allow IE to save cookies when we are loaded inside an iframe
 header('P3P:CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT"');
 
+$GLOBALS['ScriptStartTime'] = microtime(1);
 session_start();
 
 // Non-changable constants
@@ -109,7 +110,6 @@ class Loader
 	*/
 	public static function initiate() {
 		ob_start();
-		$GLOBALS['ScriptStartTime'] = microtime(1);
 
 		// Set the Default Timezone
 		date_default_timezone_set(SERVER_TIMEZONE);
@@ -120,10 +120,9 @@ class Loader
 			try {
 				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, LDAP_BIND_RDN, LDAP_BIND_PASS, LDAP_PORT);
 			} catch (Exception $e) {
-				error('Cannot connect to LDAP server.');
 				if (DEBUG)
 					throw $e;
-				return;
+				die('Cannot connect to LDAP server.');
 			}
 		}
 
@@ -314,26 +313,27 @@ class Loader
 	*/
 	private static function login_end() {
 		$username = $_REQUEST['login_user'];
-		$password = LOGIN_PRESALT . $_POST['login_pass'] . LOGIN_POSTSALT;
-		unset( $_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass'] );
 		
 		if (preg_match('/^(.*)@example.com$/', $username, $matches)) {
+			$password = $_POST['login_pass'];
+			unset( $_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass'] );
+			
 			// Using LDAP login
-			$username = 'uid=' .HNLDAP::escape($matches[1]). ',ou=People,dc=example,dc=com';
+			$ldapuser = 'uid=' .HNLDAP::escape($matches[1]). ',ou=People,dc=example,dc=com';
 			
 			// Check login to LDAP succeeds
 			try {
 				HNLDAP::close();
-				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, $username, $password, LDAP_PORT);
+				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, $ldapuser, $password, LDAP_PORT);
 			} catch (HNDBException $e) {
 				error('Incorrect Username or Password Entered.');
 				if (DEBUG)
-					throw $e;
+					error($e->getMessage());
 				return;
 			} catch (Exception $e) {
 				error('Cannot connect to LDAP server.');
 				if (DEBUG)
-					throw $e;
+					error($e->getMessage());
 				return;
 			}
 			
@@ -355,26 +355,23 @@ class Loader
 			$GLOBALS['uo'] = $uo;
 			
 			// Copy all required data to mysql object
-			$fromTo = array(
-				'username' => 'uid',
-				'email' => 'mail',
-				'first_name' => 'givenname',
-				'last_name' => 'sn',
-				);
-			foreach ($fromTo as $to => $from) {
-				if (!empty($uuo[$from][0]))
-					$uo[$to] = $uuo[$from][0];
-			}
+			$uo['username'] = $uuo['mail'][0];
+			$uo['email'] = $uuo['mail'][0];
+			$uo['first_name'] = $uuo['givenname'][0];
+			$uo['last_name'] = $uuo['sn'][0];
 			
 			// Save
 			$uo->save();
 			$userid = $uo->getId();
 		} else {
 			// Using MySQL user login
-			
+			// Salt the password for MySQL login
+			$pass = hash(LOGIN_HASHALG, LOGIN_PRESALT.$_POST['login_pass'].LOGIN_POSTSALT);
+			unset($_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass']);
+
 			// Check the login is correct
 			$user = HNMySQL::escape($username);
-			$pass = HNMySQL::escape(hash(LOGIN_HASHALG, $password));
+			$pass = HNMySQL::escape($pass);
 			// Note: The pipe in the following query is to stop problems with strange trailing chars being ignored
 			$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND `password`="' .$pass. '" LIMIT 1';
 			$result = HNMySQL::query($sql);

@@ -395,17 +395,6 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
-	 * A function to unload all the loaded objects below this MOB.
-	 */
-	public function clean_up()
-	{
-		// Reset the local data store
-		#$this->isLoaded = false;
-		#$this->objectList = array();
-		$this->clean();
-	}
-
-	/**
 	 * Clean on this and all children.
 	 */
 	public function clean() {
