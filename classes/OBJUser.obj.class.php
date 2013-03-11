@@ -40,8 +40,8 @@ class OBJUser extends HNOBJBasic
 	public function user_types() {
 		if ($this->userTypes === false) {
 			$this->userTypes = array('all' => 0, 'user' => 0);
-			$other = strtolower(str_replace(' ', '_', $this['role']));
-			$this->userTypes[$other] = 0;
+			//$other = strtolower(str_replace(' ', '_', $this['role']));
+			//$this->userTypes[$other] = 0;
 		}
 		return $this->userTypes;
 	}

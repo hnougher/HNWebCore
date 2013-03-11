@@ -15,8 +15,8 @@ define('BASE_PATH', str_replace('\\', '/', dirname(__FILE__)));
 
 
 $config = array(
-	'DEBUG' => false,
-	'STATS' => false,
+	'DEBUG' => true,
+	'STATS' => true,
 
 	'CSS_CACHETIME'		=> 7 * 24 * 60 * 60,
 	'LOGIN_TIMEOUT'		=> 1200,
@@ -32,9 +32,9 @@ $config = array(
 
 	// Main Database
 	'MYSQL_HOST'		=> '127.0.0.1',
-	'MYSQL_USER'		=> 'hnwc_ucms',
-	'MYSQL_PASS'		=> 'bEZ4hXrQMH52WyUJ',
-	'MYSQL_DATABASE'	=> 'hnwc_ucms',
+	'MYSQL_USER'		=> 'hnwc_santos',
+	'MYSQL_PASS'		=> 'QysnwqUnwYHGR9cu',
+	'MYSQL_DATABASE'	=> 'hnwc_santos',
 	
 	// LDAP Database
 	'LDAP_ENABLED'		=> false,

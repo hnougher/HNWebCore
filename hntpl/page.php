@@ -193,17 +193,18 @@ class HNTPLPage extends HNTPLMainTypes
 
 			echo '<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">';
 			echo '<html><head>' .$EOL;
+				echo '<meta charset="UTF-8"/>' .$EOL;
 				echo '<title>' .$this->title. '</title>' .$EOL;
 				echo '<meta name="description" content="' .SITE_DESCRIPTION. '">' .$EOL;
 				echo '<meta name="keywords" content="' .SITE_KEYWORDS. '">' .$EOL;
 
 				// JQuery Setup
-				echo '<link type="text/css" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/themes/smoothness/jquery-ui.css" rel="stylesheet">';
+				echo '<link type="text/css" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.0/themes/smoothness/jquery-ui.css" rel="stylesheet">';
 				echo '<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>';
 				echo '<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.0/jquery-ui.min.js"></script>';
 				
 				// Put the cursor in the first input box using JS
-				echo '<script type="text/javascript">$(function(){$("input[type=\'text\']:first").focus();});';
+				echo '<script type="text/javascript">$(function(){$("input[type=\'text\']:first").focus();});</script>';
 				
 				// Detect IE for Hacks
 				/*if( isset( $_SERVER['HTTP_USER_AGENT'] )
@@ -226,6 +227,7 @@ class HNTPLPage extends HNTPLMainTypes
 					}
 				}*/
 
+				echo '<link type="text/css" href="' .SERVER_ADDRESS. '/style/HNWebCore.css" rel="stylesheet">';
 				echo '<link rel="icon" href="' .SERVER_ADDRESS. '/style/favicon.ico" type="image/x-icon">';
 				echo '<link rel="shortcut icon" href="' .SERVER_ADDRESS. '/style/favicon.ico" type="image/x-icon">';
 
@@ -240,13 +242,10 @@ class HNTPLPage extends HNTPLMainTypes
 			// Continue creating page
 			echo '<body>';
 
-			if( !empty( self::$debug ) )
-			{
-				echo '<div class="debug">';
-					echo '<span class="debugSpan" onclick="d=document.getElementById(\'debugDiv\');d.style.display=d.style.display==\'none\'?\'\':\'none\'">DEBUG TEXT</span>';
-					echo '<div id="debugDiv" class="debugDiv" style="display: none">';
-						echo '<pre>' .self::$debug. '</pre>';
-					echo '</div>';
+			if (!empty(self::$debug)) {
+				echo '<span id="debugSpan" onclick="d=document.getElementById(\'debugDiv\');d.style.display=d.style.display==\'none\'?\'\':\'none\'">DEBUG TEXT</span>';
+				echo '<div id="debugDiv" style="display: none">';
+					echo '<pre>' .self::$debug. '</pre>';
 				echo '</div>';
 			}
 			
@@ -285,20 +284,20 @@ class HNTPLPage extends HNTPLMainTypes
 			</table>';
 		
 		if (!empty($_SESSION['confirm'])) {
-			echo '<div class="bBconfirm ui-corner-all">';
+			echo '<div id="confirmBox" class="ui-corner-all">';
 				echo implode('<br/>', (array) $_SESSION['confirm']);
 			echo '</div>';
 			unset($_SESSION['confirm']);
 		}
 		if (!empty($_SESSION['error'])) {
-			echo '<div class="bBerror ui-corner-all">';
+			echo '<div id="errorBox" class="ui-corner-all">';
 				echo implode('<br/>', (array) $_SESSION['error']);
 			echo '</div>';
 			unset($_SESSION['error']);
 		}
 		
 		// Continue making page
-		echo '<div id="bBpage" class="bBpage ui-corner-all">';
+		echo '<div id="pageContent" class="ui-corner-all">';
 		parent::output();
 		echo '</div>';
 	}

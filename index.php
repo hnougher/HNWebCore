@@ -253,13 +253,12 @@ class Loader
 		// Find the script that this request is for
 		$pagePath = PAGE_PATH;
 		$helpPath = PAGE_PATH. '/HELP';
-		$tmpQuery = $query;
-		while (count($tmpQuery)
-				 && (file_exists($pagePath. '/' .$tmpQuery[0])
-					|| file_exists($pagePath. '/' .$tmpQuery[0]. '.php')
+		while (count($query)
+				 && (file_exists($pagePath. '/' .$query[0])
+					|| file_exists($pagePath. '/' .$query[0]. '.php')
 					)
 				) {
-			$piece = '/' .array_shift($tmpQuery);
+			$piece = '/' .array_shift($query);
 			$pagePath .= $piece;
 			$helpPath .= $piece;
 		}

@@ -3,12 +3,9 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <table class="OBJUser" read="user" write="user" insert="user" delete="">
 	<field name="userid" type="int" key="auto" read="all" write=""/>
-	<field name="ldap_dn" type="object" table="une_user" read="all" write="" insert="all"/>
 	<field name="username" type="str" max="320" key="unique" read="all"/>
 	<field name="password" type="str" max="128" password="1" read="all"/>
 	<field name="first_name" type="str" max="40"/>
 	<field name="last_name" type="str" max="40"/>
-	<field name="email" type="str" max="320"/>
-	<field name="created" type="str" max="19"/>
-	<field name="role" type="str" max="21" enum="|Programmmer|Admin|Learning Designer|Educational Developer|Service Provider|Unit Coordinator" read="all" insert="all"/>
+	<field name="gender" type="str" max="6" enum="Male|Female|Other"/>
 </table>

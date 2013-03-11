@@ -1,0 +1,101 @@
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/**
+* This is a basic CSS layout to get a site started.
+*/
+
+@import url(http://fonts.googleapis.com/css?family=Permanent+Marker);
+
+body {
+	background: linear-gradient(to bottom, #F2F2FF, #DEDEFF, #F2F2FF) repeat scroll 0 0 #EEF;
+}
+
+#debugSpan, #debugDiv {
+	background: linear-gradient(to bottom, #FFF2F2, #FFCECE) repeat scroll 0 0 #FEE;
+	color: #400;
+	position: absolute;
+}
+#debugSpan {
+	border: 1px outset #FEE;
+	cursor: pointer;
+	font-family: 'Permanent Marker',arial,serif;
+	font-size: 18px;
+	height: 25px;
+	left: 30px;
+	padding: 0 10px;
+	text-align: center;
+	top: 0px;
+	z-index: 10;
+}
+#debugSpan:hover {
+	background: none repeat scroll 0 0 #FFCCCC;
+	border: 1px outset #FFCCCC;
+}
+#debugDiv {
+	border: 1px dashed #FF0000;
+	bottom: 10px;
+	font-size: 11px;
+	left: 10px;
+	overflow: auto;
+	max-width: 1024px;
+	padding: 0 10px;
+	right: 10px;
+	top: 15px;
+}
+
+#confirmBox, #errorBox, #pageContent {
+	margin: 0 auto 10px;
+	padding: 10px;
+	width: 1024px;
+}
+#confirmBox, #errorBox {
+	font-family: 'Permanent Marker',arial,serif;
+	font-size: 1.5em;
+	text-align: center;
+}
+#confirmBox {
+	background: linear-gradient(to bottom, #F2FFF2, #CEFFCE) repeat scroll 0 0 #EFE;
+	border: 1px outset #070;
+	color: #070;
+}
+#errorBox {
+	background: linear-gradient(to bottom, #FFF2F2, #FFCECE) repeat scroll 0 0 #FEE;
+	border: 1px outset #700;
+	color: #700;
+}
+#pageContent {
+	background: linear-gradient(to bottom, #F2F2FF, #DEDEFF) repeat scroll 0 0 #EEF;
+	border: 1px outset #007;
+	color: #000;
+}
+
+#ToolTip {
+	display: none;
+}
+
+.selector #content table {
+	border-collapse: collapse;
+	width: 100%;
+}
+.selector #content .orderASC:after {
+	content: " [A-Z]";
+}
+.selector #content .orderDESC:after {
+	content: " [Z-A]";
+}
+.selector #content td {
+	text-align: center;
+}
+.selector #content .clickable:hover {
+	background: linear-gradient(to bottom, #DEDEFF, #F2F2FF) repeat scroll 0 0 #EEF;
+	cursor: pointer;
+}
+
+/* Some document parts are specially made for screen or printer */
+@media aural,braille,embossed,handheld,projection,screen,tty,tv {
+.printOnly {display: none;}
+}
+@media print {
+.screenOnly,#confirmBox,#errorBox,#debugSpan,#debugDiv {display:none;}
+}
