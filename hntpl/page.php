@@ -172,16 +172,9 @@ class HNTPLPage extends HNTPLMainTypes
 
 		if( isset( $_REQUEST['noTemplate'] ) )
 		{
-			if( !empty( self::$debug ) )
-			{
-				// Unique because there can be multiple noTemplate pages displayed at once
-				$unique = mt_rand( 1, 1000000 );
-				echo '<div class="debug">';
-					echo '<span class="debugSpan" onclick="d=document.getElementById(\'debugDiv' .$unique. '\');d.style.display=d.style.display==\'none\'?\'\':\'none\'">DEBUG TEXT</span>';
-					echo '<div id="debugDiv' .$unique. '" class="debugDiv" style="display: none">';
-						echo '<pre>' .self::$debug. '</pre>';
-					echo '</div>';
-				echo '</div>';
+			if (!empty(self::$debug)) {
+				echo '<div id="debugDiv" style="display: none"><pre>' .self::$debug. '</pre></div>';
+				echo '<span id="debugSpan" onclick="d=document.getElementById(\'debugDiv\');d.style.display=d.style.display==\'none\'?\'\':\'none\'">DEBUG TEXT</span>';
 			}
 			
 			// Output the page
@@ -243,10 +236,8 @@ class HNTPLPage extends HNTPLMainTypes
 			echo '<body>';
 
 			if (!empty(self::$debug)) {
+				echo '<div id="debugDiv" style="display: none"><pre>' .self::$debug. '</pre></div>';
 				echo '<span id="debugSpan" onclick="d=document.getElementById(\'debugDiv\');d.style.display=d.style.display==\'none\'?\'\':\'none\'">DEBUG TEXT</span>';
-				echo '<div id="debugDiv" style="display: none">';
-					echo '<pre>' .self::$debug. '</pre>';
-				echo '</div>';
 			}
 			
 			// Send what we have made so far so the browser can get going

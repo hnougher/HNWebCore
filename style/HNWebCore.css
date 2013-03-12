@@ -15,6 +15,7 @@ body {
 	background: linear-gradient(to bottom, #FFF2F2, #FFCECE) repeat scroll 0 0 #FEE;
 	color: #400;
 	position: absolute;
+	z-index: 10000;
 }
 #debugSpan {
 	border: 1px outset #FEE;
@@ -26,7 +27,6 @@ body {
 	padding: 0 10px;
 	text-align: center;
 	top: 0px;
-	z-index: 10;
 }
 #debugSpan:hover {
 	background: none repeat scroll 0 0 #FFCCCC;
