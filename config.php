@@ -45,6 +45,7 @@ $config = array(
 	'LDAP_BIND_PASS'	=> NULL,
 	
 	'CLASS_PATH'		=> BASE_PATH . '/classes',
+	'CRON_PATH'			=> BASE_PATH . '/cron',
 	'DBSTRUCT_PATH'		=> BASE_PATH . '/dbstruct',
 	'PAGE_PATH'			=> BASE_PATH . '/pages',
 	'TEMPLATE_PATH'		=> BASE_PATH . '/hntpl',

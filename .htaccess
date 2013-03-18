@@ -11,6 +11,7 @@ RewriteBase /HNWebCore/
 
 # THIS IS THE REWRITE STUFF
 RewriteCond %{REQUEST_URI} !^/HNWebCore/ajax.php [NC]
+RewriteCond %{REQUEST_URI} !^/HNWebCore/cron.php [NC]
 RewriteCond %{REQUEST_URI} !^/HNWebCore/index.php [NC]
 RewriteCond %{REQUEST_URI} !^/HNWebCore/robots.txt [NC]
 RewriteCond %{REQUEST_URI} !^/HNWebCore/style/* [NC]
