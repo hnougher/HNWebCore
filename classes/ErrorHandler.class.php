@@ -78,7 +78,7 @@ class ErrorHandler
 	
 	private static function replaceFieldList($str) {
 		$start = -1;
-		while (($start = strpos($str, 'Object ('), $start + 1) !== false) {
+		while (($start = strpos($str, 'Object (', $start + 1)) !== false) {
 			$part1 = substr($str, 0, $start);
 			$part2 = substr($str, $start);
 			$str = $part1 . preg_replace("#\s\(((?>[^\(\)]+)|(?R))*\)#x", "*", $part2, 1);
