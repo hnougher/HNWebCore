@@ -152,6 +152,19 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
+	* @param $fields An array of fields which defines the output we want.
+	*    $fields can also contain a string, in which case we call replaceFields on it.
+	* @return array The results of the population.
+	* @example $OBJ->collect(array('first_name'=>'','last_name'=>''));
+	*/
+	public function collect($fields) {
+		$JRet = array();
+		foreach($this AS $DBOBJ)
+			$JRet[] = $DBOBJ->collect($fields);
+		return $JRet;
+	}
+
+	/**
 	* Loads all the matching records
 	*
 	* @param array $orderParts Contains an array which is used to order the objects that are selected. The key is the field name and the value is the direction (true=ASC, false=DESC).
@@ -496,7 +509,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 			$obj = HNOBJBasic::loadObject($this->fieldList->getTable(), $this->objectList[$offset][0], false, $this->fieldList);
 			if (isset($this->objectList[$offset][1]))
 				$obj->_internal_set_data($this->objectList[$offset][1]);
-			if ($this->parentIdField != 'NONE')
+			if (!empty($this->parentObj) && $this->parentIdField != 'NONE')
 				$obj->set_reverse_link($this->parentIdField, $this->parentObj);
 			$this->objectList[$offset] = $obj;
 		}

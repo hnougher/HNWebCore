@@ -109,7 +109,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			// We need a new object
 			$obj = new $className($table, (array) $id, $loadNow, $fieldList);
 
-			if ($idFix != '0') {
+			if (!empty($idFix)) {
 				if( !isset( self::$cachedObjects[$table]))
 					self::$cachedObjects[$table] = array();
 				self::$cachedObjects[$table][$idFix] = $obj;
@@ -261,6 +261,24 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
+	* @param $fields An array of fields which defines the output we want.
+	*    $fields can also contain a string, in which case we call replaceFields on it.
+	* @return array The results of the population.
+	* @example $OBJ->collect(array('first_name'=>'','last_name'=>''));
+	*/
+	public function collect($fields) {
+		if (!is_array($fields))
+			return $this->replaceFields($fields);
+		
+		$JRet = array();
+		foreach ($fields AS $field => $fcontent) {
+			$DBField = $this[$field];
+			$JRet[$field] = (!empty($fcontent) ? $DBField->collect($fcontent) : $DBField);
+		}
+		return $JRet;
+	}
+
+	/**
 	* Replaces all occurances of field names matching $pre$field$post in
 	* a passed in string.
 	*
@@ -323,31 +341,37 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			return false;
 		}
 		
-		$sql = 'SELECT ' .implode(',', $sqlFields). ' ';
-		$sql .= 'FROM `' .$this->fieldList->getTable(). '` ';
-		$sql .= 'WHERE ';
-		foreach ((array) $this->fieldList->getIdField() AS $key => $idField)
-			$sql .= '`' .$idField. '`="' .HNMySQL::escape($this->myId[$key]). '" AND ';
-		$sql = substr($sql, 0, -4);
-		$sql .= 'LIMIT 1';
+		$idFields = (array) $this->fieldList->getIdField();
+		if (count($idFields) == count($this->myId)) {
+			$sql = 'SELECT ' .implode(',', $sqlFields). ' ';
+			$sql .= 'FROM `' .$this->fieldList->getTable(). '` ';
+			$sql .= 'WHERE ';
+			foreach ($idFields AS $key => $idField)
+				$sql .= '`' .$idField. '`="' .HNMySQL::escape($this->myId[$key]). '" AND ';
+			$sql = substr($sql, 0, -4);
+			$sql .= 'LIMIT 1';
 
-		// Do the Query
-		$result = HNMySQL::query($sql);
-		if (!$result) {
-			// The query has failed for some reason
-			// NOTE: HNMySQL logs and displays the error before return.
-			return false;
+			// Do the Query
+			$result = HNMySQL::query($sql);
+			if (!$result) {
+				// The query has failed for some reason
+				// NOTE: HNMySQL logs and displays the error before return.
+				return false;
+			}
+
+			// Check if the record does exist
+			if ($result->num_rows == 0)
+				$this->noRecord = true;
+			else
+				// Get the Data
+				$data = $result->fetch_assoc();
+		}
+		else {
+			$this->noRecord = true;
 		}
 
-		// Check if the record does exist
-		if( $result->num_rows == 0 )
-			$this->noRecord = true;
-		else
-			// Get the Data
-			$data = $result->fetch_assoc();
-
 		// Process the Data into the correct data types and locally store it
-		$this->storeArrayToLocal($this->noRecord ? array() : $data);
+		$this->storeArrayToLocal($this->noRecord ? array() : $data, $oldData);
 
 		// YAY! We have loaded successfully
 		$this->isLoaded = true;
@@ -357,7 +381,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	/**
 	* Processes the Data into the correct data types and locally store it.
 	*/
-	protected function storeArrayToLocal($dataArray) {
+	protected function storeArrayToLocal($dataArray, $oldData = array()) {
 		foreach ($this->fieldList->getReadable() as $name => $fieldInfo) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
@@ -384,7 +408,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 					$this->myData[$name]['count'] = 1;
 			}
 			elseif ($fieldInfo['type'] == 'object') {
-				if (isset($oldData[$name]) && $oldData[$name] instanceof HNOBJBasic && $oldData[$name]->getId() == $fieldData)
+				if (isset($oldData[$name]) && $oldData[$name] instanceof HNOBJBasic && $oldData[$name]->getId() == $dataArray[$name])
 					$this->myData[$name] = $oldData[$name];
 				else
 					$this->myData[$name] = array(1, $fieldInfo['table'], $dataArray[$name]);
@@ -518,10 +542,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 
 		// YAY! We have deleted the record!
-		// Now we change it noRecord mode
-		$this->noRecord = true;
-		$this->myChangedData = array_merge($this->myChangedData, $this->myData);
-		$this->myData = array();
+		$this->isLoaded = false;
 		return true;
 	}
 
