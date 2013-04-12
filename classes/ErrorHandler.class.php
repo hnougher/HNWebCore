@@ -89,6 +89,7 @@ class ErrorHandler
 	public static function crashHandler() {
 		$ignoreCodes = array(E_STRICT);
 		if (is_null($e = error_get_last()) === false
+			&& !stripos($_SERVER['HTTP_HOST'], 'localhost')
 			&& !in_array($e['type'], $ignoreCodes)
 			) {
 			$e['type'] = self::$errorType[$e['type']];

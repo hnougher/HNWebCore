@@ -18,6 +18,8 @@ require_once CLASS_PATH. '/HNDB.class.php';
 */
 class HNMySQL extends HNDB
 {
+	const DATETIME_FORMAT = 'Y-m-d H:i:s';
+
 	/**
 	* Holds the mysqli object after it has been initialised.
 	* @var conn
