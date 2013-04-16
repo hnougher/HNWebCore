@@ -7,5 +7,6 @@
  * at the start it was to get PHP'ed CSS files to stay cached.
  */
 
-header('Cache-Control: max-age=' .CSS_CACHETIME);
+header('Cache-Control: public; max-age=' .CSS_CACHETIME);
 header('Expires: ' .gmdate('D, d M Y H:i:s', time() + CSS_CACHETIME) .' GMT');
+header('Pragma: ');
