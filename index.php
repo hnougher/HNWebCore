@@ -20,13 +20,24 @@ header('P3P:CP="IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT
 $GLOBALS['ScriptStartTime'] = microtime(1);
 session_start();
 
-// Non-changable constants
-if( isset( $_SESSION['showDebug'] ) && $_SESSION['showDebug'] == 1 )
-	define( 'DEBUG', true );
-if( isset( $_SESSION['showStats'] ) && $_SESSION['showStats'] == 1 )
-	define( 'STATS', true );
-
+// Non-changable constants and config
+if (isset($_SESSION['showDebug']) && $_SESSION['showDebug'] == 1)
+	define('DEBUG', true);
+if (isset($_SESSION['showStats']) && $_SESSION['showStats'] == 1)
+	define('STATS', true);
 require_once 'config.php';
+
+// Small amount of code to test if we are still logged in
+// Call ?TEST_SESSION_TIMEOUT to test or ?TEST_SESSION_TIMEOUT=NOTIFY to extend timeout if not already timed out.
+// Returns zero if timed out or >0 otherwise. The number is also the number of seconds left until timeout.
+if (isset($_REQUEST['TEST_SESSION_TIMEOUT'])) {
+	if (!isset($_SESSION['UserLoggedIn']) || $_SESSION['UserLastSeen'] + LOGIN_TIMEOUT <= time())
+		die('0');
+	if ($_REQUEST['TEST_SESSION_TIMEOUT'] == 'NOTIFY')
+		$_SESSION['UserLastSeen'] = time();
+	die(($_SESSION['UserLastSeen'] + LOGIN_TIMEOUT - time()). '');
+}
+
 require_once CLASS_PATH. '/ErrorHandler.class.php';
 require_once CLASS_PATH. '/HNMySQL.class.php';
 require_once CLASS_PATH. '/FieldList.class.php';
@@ -458,7 +469,7 @@ class Loader
 	* @param boolen $isSuccess True if it succeded, false for failure.
 	*/
 	private static function login_logit($isLogin, $isSuccess) {
-		$tmpUT = $GLOBALS['user_types'];
+		$tmpUT = (empty($GLOBALS['user_types']) ? array() : $GLOBALS['user_types']);
 		$GLOBALS['user_types'] = array('user' => true);
 
 		$userid = isset($_SESSION['UserLoggedIn']) ? intval($_SESSION['UserLoggedIn']) : 0;
