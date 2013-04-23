@@ -15,8 +15,6 @@
 */
 class OBJUser extends HNOBJBasic
 {
-	private $userTypes = false;
-	
 	/**
 	* Gets the first and last name of the user in one standard string.
 	* 
@@ -38,12 +36,13 @@ class OBJUser extends HNOBJBasic
 	}
 	
 	public function user_types() {
-		if ($this->userTypes === false) {
-			$this->userTypes = array('all' => 0, 'user' => 0);
+		static $cache;
+		if (!isset($cache)) {
+			$cache = array('all' => 0, 'user' => 0);
 			//$other = strtolower(str_replace(' ', '_', $this['role']));
-			//$this->userTypes[$other] = 0;
+			//$cache[$other] = 0;
 		}
-		return $this->userTypes;
+		return $cache;
 	}
 	
 	/**
@@ -55,18 +54,17 @@ class OBJUser extends HNOBJBasic
 	 * @return TRUE when the user has permission or FALSE otherwise.
 	 */
 	public function testUserType($toCheck = '') {
-		if ($this->userTypes === false)
-			$this->user_types();
+		$userTypes = $this->user_types();
 		
 		// programmer can access anything
-		if (isset($this->userTypes['programmer']))
+		if (isset($userTypes['programmer']))
 			return true;
 		
 		// Split the string by space
 		$token = strtok(''.$toCheck, ' ');
 		while ($token !== false) {
 			$token = trim($token);
-			if (isset($this->userTypes[$token]))
+			if (isset($userTypes[$token]))
 				return true;
 			$token = strtok(' ');
 		}
