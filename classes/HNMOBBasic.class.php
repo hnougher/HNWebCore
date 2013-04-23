@@ -30,6 +30,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* Contains an array of HNOBJBasic objects that this class found.
+	* Can also contain _MOBType objects which define how to load an HNOBJBasic.
 	* @var array
 	*/
 	protected $objectList = array();
@@ -287,13 +288,13 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 				foreach ((array) $idFields AS $idField)
 					$idSet[] = (isset($row[$idField]) ? $row[$idField] : 0);
 				
-				$this->objectList[] = array($idSet, $row);
+				$this->objectList[] = new _MOBType($idSet, $row);
 			}
 		}
 		else {
 			foreach ($result as $row) {
 				unset($row['count']); // Done want LDAP count
-				$this->objectList[] = array(array_values($row));
+				$this->objectList[] = new _MOBType(array_values($row));
 			}
 		}
 	}
@@ -380,13 +381,12 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 				if ($this->parentIdField != 'NONE')
 					$obj->set_reverse_link($this->parentIdField, $this->parentObj);
 				$this->objectList[] = $obj;*/
-				$this->objectList[] = array($idSet, $row);
+				$this->objectList[] = new _MOBType($idSet, $row);
 			}
 		}
 		else {
 			while ($row = $result->fetch_row()) {
-				//$this->objectList[] = array($row, false);
-				$this->objectList[] = array($row);
+				$this->objectList[] = new _MOBType($row);
 			}
 		}
 
@@ -396,15 +396,17 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* WARNING: THIS FUNCTION WILL NOT CHANGE PRIMARY ID!
-	* (Field Permissions Do Not Allow Users To Change Primary Id Fields)
+	* (Field Permissions Should Not Allow Users To Change Primary Id Fields)
 	*
 	* Calls {@link HNOBJBasic::save()} on every child object that this class
 	* currently has references to. To be used in situations like when the
 	* parent id is changed and needs to be changed in all forein key loactions.
 	*/
 	public function save_all() {
-		foreach ($this->objectList As $object)
-			$object->save();
+		foreach ($this->objectList As $object) {
+			if ($object instanceof HNOBJBasic)
+				$object->save();
+		}
 	}
 
 	/**
@@ -412,43 +414,37 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	 */
 	public function clean() {
 		$this->isLoaded = false;
-		foreach ($this->objectList AS &$obj) {
-			if ($obj instanceof HNOBJBasic) {
-				$tmp = $obj;
-				$obj = $tmp->getId();
-				$tmp->clean();
-			}
+		foreach ($this->objectList AS $obj) {
+			if ($obj instanceof HNOBJBasic)
+				$obj->clean();
 		}
 		$this->objectList = array();
 	}
 
 	/**
-	 * NOT USED CURRENTLY
 	 * Gets the index of the given object or -1 on not found.
 	 *
 	 * @param $find The object/id we are trying to locate in this list.
 	 * @return integer The index of the object that was found or -1 if not found.
 	 */
-	/*public function indexOf( $find )
-	{
+	public function indexOf($find) {
 		// Check that the find object is from the same table
-		if( is_object( $find ) )
-		{
-			if( $find->getTable() != $this->theTable )
+		if (is_object($find)) {
+			if (!($find instanceof HNOBJBasic) || $find->getTable() != $this->theTable)
 				return -1;
 			$find = $find->getId();
 		}
 
 		// Search List
-		foreach( $this AS $index => $item )
-		{
-			if( $item->getId() == $find )
+		$find = (array) $find;
+		foreach ($this AS $index => $item) {
+			if ((array) $item->getId() == $find)
 				return $index;
 		}
 
 		// Not Found
 		return -1;
-	}*/
+	}
 
 
 	// ############################################
@@ -481,7 +477,6 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	*/
 	public function getIterator() {
 		$this->checkLoaded(true);
-		#return new HNMOBBasicIterator( $this->objectList );
 		return new HNMOBBasicIterator($this);
 	}
 
@@ -504,34 +499,33 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 			return null;
 		
 		// Check if progressive creation of HNOBJ for offset is needed
-		if (!($this->objectList[$offset] instanceof HNOBJBasic)) {
-			#$obj = HNOBJBasic::loadObject($this->fieldList->getTable(), $this->objectList[$offset], false, $this->fieldList);
-			$obj = HNOBJBasic::loadObject($this->fieldList->getTable(), $this->objectList[$offset][0], false, $this->fieldList);
-			if (isset($this->objectList[$offset][1]))
-				$obj->_internal_set_data($this->objectList[$offset][1]);
+		$object = $this->objectList[$offset];
+		if ($object instanceof _MOBType) {
+			$mobType = $object;
+			$object = HNOBJBasic::loadObject($this->fieldList->getTable(), $mobType->id, false, $this->fieldList);
+			if ($mobType->data !== false)
+				$object->_internal_set_data($mobType->data);
 			if (!empty($this->parentObj) && $this->parentIdField != 'NONE')
-				$obj->set_reverse_link($this->parentIdField, $this->parentObj);
-			$this->objectList[$offset] = $obj;
+				$object->set_reverse_link($this->parentIdField, $this->parentObj);
+			$this->objectList[$offset] = $object;
 		}
 		
 		// Return the HNOBJ instance at the offset
-		return $this->objectList[$offset];
+		return $object;
 	}
 
 	/**
 	* Required definition of interface ArrayAccess
 	*/
 	public function offsetSet($offset, $value) {
-		die('offsetSet is not implemented in HNMOBBasic');
-		// return isset( $this->objectList[ $offset ] );
+		throw new Exception('offsetSet is not implemented in HNMOBBasic');
 	}
 
 	/**
 	* Required definition of interface ArrayAccess
 	*/
 	public function offsetUnset($offset) {
-		die('offsetUnset is not implemented in HNMOBBasic');
-		// return isset( $this->objectList[ $offset ] );
+		throw new Exception('offsetUnset is not implemented in HNMOBBasic');
 	}
 
 	/**
@@ -571,5 +565,27 @@ class HNMOBBasicIterator implements Iterator
 
 	public function valid() {
 		return $this->MOB->offsetExists($this->cur);
+	}
+}
+
+/**
+* This is a type which is stored in the MOB until it row is loaded.
+*/
+class _MOBType
+{
+	public $id; // Array of ID values which matches the number in the DBStruct
+	public $data; // false = no data, array = has data to load OBJ
+	public function __construct($id, $data = false) {
+		$this->id = $id;
+		$this->data = $data;
+	}
+	
+	/**
+	* @see HNOBJBasic::getId()
+	*/
+	public function getId() {
+		if (count($this->id) == 1)
+			return $this->id[0];
+		return $this->id;
 	}
 }
