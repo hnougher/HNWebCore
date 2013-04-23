@@ -52,16 +52,13 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	protected $myId;
 
 	/**
-	* Used to determine if this object has been loaded.
-	* @var boolean
+	* Stores the current status of this OBJ.
+	* @var enum
 	*/
-	protected $isLoaded = false;
-
-	/**
-	* Used to determine if this object has no record.
-	* @var boolean
-	*/
-	protected $noRecord = false;
+	const NOT_LOADED = 0;
+	const NO_RECORD = 1;
+	const LOADED = 2;
+	protected $status = self::NOT_LOADED;
 
 	/**
 	* This contains the same data that the Database does.
@@ -177,8 +174,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function _internal_set_data($dataSet) {
 		// Setup the data structure
 		$this->storeArrayToLocal($dataSet);
-		$this->noRecord = false;
-		$this->isLoaded = true;
+		$this->status = self::LOADED;
 	}
 	
 	/**
@@ -188,7 +184,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function has_record() {
 		if ($this->getId() == 0 || !$this->checkLoaded(true))
 			return false;
-		return !$this->noRecord;
+		return ($this->status == self::LOADED);
 	}
 	
 	/**
@@ -199,7 +195,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return boolean True if it is now loaded, false otherwise.
 	*/
 	public function checkLoaded($loadNow = false) {
-		if ($this->isLoaded)
+		if ($this->status == self::LOADED)
 			return true;
 		if ($loadNow)
 			return $this->load();
@@ -321,8 +317,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	*/
 	public function load() {
 		// Reset the local data store
-		$this->isLoaded = false;
-		$this->noRecord = false;
+		$this->status = self::NOT_LOADED;
 		$oldData = $this->myData;
 		$this->myData = array();
 
@@ -361,20 +356,21 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 
 			// Check if the record does exist
 			if ($result->num_rows == 0)
-				$this->noRecord = true;
+				$this->status = self::NO_RECORD;
 			else
 				// Get the Data
 				$data = $result->fetch_assoc();
 		}
 		else {
-			$this->noRecord = true;
+			$this->status = self::NO_RECORD;
 		}
 
 		// Process the Data into the correct data types and locally store it
-		$this->storeArrayToLocal($this->noRecord ? array() : $data, $oldData);
+		$this->storeArrayToLocal(($this->status == self::NO_RECORD ? array() : $data), $oldData);
 
-		// YAY! We have loaded successfully
-		$this->isLoaded = true;
+		// We have loaded successfully if we have a record
+		if ($this->status == self::NOT_LOADED)
+			$this->status = self::LOADED;
 		return true;
 	}
 	
@@ -438,8 +434,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (count($this->myChangedData) == 0)
 			return false;
 
-		// Check if we have to insert the new row And make the SQL
-		if ($this->myId[0] == 0 || $this->noRecord) {
+		// Check if we have to insert the new row and make the SQL
+		if ($this->myId[0] == 0 || $this->status == self::NO_RECORD) {
 			// Get the field names that we are allowed to insert to
 			$fields = $this->fieldList->getInsertable();
 
@@ -542,7 +538,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 
 		// YAY! We have deleted the record!
-		$this->isLoaded = false;
+		$this->status = self::NOT_LOADED;
 		return true;
 	}
 
@@ -563,7 +559,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$data->clean();
 		}
 
-		$this->isLoaded = false;
+		$this->status = self::NOT_LOADED;
 		$this->myData = array();
 		$this->myChangedData = array();
 		$this->myParentObject = null;

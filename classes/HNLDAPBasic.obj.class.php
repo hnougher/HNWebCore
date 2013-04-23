@@ -19,8 +19,7 @@ class HNLDAPBasic extends HNOBJBasic
 	*/
 	public function load() {
 		// Reset the local data store
-		$this->isLoaded = false;
-		$this->noRecord = false;
+		$this->status = self::NOT_LOADED;
 		$oldData = $this->myData;
 		$this->myData = array();
 
@@ -57,14 +56,15 @@ class HNLDAPBasic extends HNOBJBasic
 
 		// Check if the record does exist
 		if ($result["count"] == 0)
-			$this->noRecord = true;
+			$this->status = self::NO_RECORD;
 
 		// Process the Data into the correct data types and locally store it
 		#var_dump($result);
-		$this->storeArrayToLocal($this->noRecord ? array() : $result[0]);
+		$this->storeArrayToLocal(($this->status == self::NO_RECORD) ? array() : $result[0]);
 
-		// YAY! We have loaded successfully
-		$this->isLoaded = true;
+		// We have loaded successfully if we have a record
+		if ($this->status == self::NOT_LOADED)
+			$this->status = self::LOADED;
 		return true;
 	}
 
@@ -76,6 +76,7 @@ class HNLDAPBasic extends HNOBJBasic
 	* @return boolean TRUE on success, otherwise FALSE.
 	*/
 	public function save() {
+		throw new Exception("LDAP OBJ SAVE NOT IMPLEMENTED");
 	}
 
 	/**
@@ -84,7 +85,7 @@ class HNLDAPBasic extends HNOBJBasic
 	* @return boolean TRUE on success, otherwise FALSE.
 	*/
 	public function remove() {
-		die("LDAP OBJ ERMOVE NOT IMPLEMENTED");
+		throw new Exception("LDAP OBJ REMOVE NOT IMPLEMENTED");
 	}
 }
 
