@@ -20,31 +20,19 @@
 class FieldList
 {
 	/**
-	* Contains the path to where the DBStructure XML data is located.
-	* @var string
-	*/
-	#protected static $structPath;
-	
-	/**
-	* Contains field list objects which have already been collected
-	* @var array
-	*/
-	protected static $fieldLists = array();
-	
-	/**
 	* Used to collect a new or cached version of a field list object for use.
 	*/
 	public static function loadFieldList($table) {
+		static $fieldLists = array();
 		$userTypes = (empty($GLOBALS['uo']) ? array('all' => 0) : $GLOBALS['uo']->user_types());
-		if (!isset(self::$fieldLists[$table]) || self::$fieldLists[$table][1] != array_keys($userTypes)) {
+		if (!isset($fieldLists[$table]) || $fieldLists[$table][1] != array_keys($userTypes)) {
 			// Need to create a new Field List
-			self::$fieldLists[$table] = array(
+			$fieldLists[$table] = array(
 				new self($table),
 				array_keys($userTypes)
 				);
 		}
-		
-		return self::$fieldLists[$table][0];
+		return $fieldLists[$table][0];
 	}
 	
 	/**
@@ -54,33 +42,10 @@ class FieldList
 	protected $myTable = '';
 
 	/**
-	* Contains the SimpleXML object for this instance only.
-	* @var SimpleXML
-	*/
-	protected $myFields = false;
-
-	/**
-	* Contains caches for other areas.
-	* @var array
-	*/
-	protected $cache = array();
-
-	/**
-	* This constructor checks if the table structure has been loaded in this
-	* session and uses it if it has been. If it has not then it will attempt
-	* to load it from the XML structure file.
-	* 
 	* @param string $table The table that this instance is to deal with.
 	*/
 	public function __construct($table) {
-		$path = DBSTRUCT_PATH . '/' . $table . '.xml';
-		if (file_exists($path)) {
-			$this->myFields = simplexml_load_file($path);
-			$this->myTable = $table;
-		}
-		else {
-			echo "FieldList failed to load XML for table '" .$table. "'\n";
-		}
+		$this->myTable = $table;
 	}
 
 	/**
@@ -112,7 +77,12 @@ class FieldList
 	* @return string The tree base string.
 	*/
 	public function getLDAPBase() {
-		return $this->myFields['LDAPBase'];
+		static $cache;
+		if (!isset($cache)) {
+			$myXML = _FieldListStaticStorage::getXML($this->myTable);
+			$cache = $myXML['LDAPBase'];
+		}
+		return $cache;
 	}
 
 	/**
@@ -121,7 +91,12 @@ class FieldList
 	* @return string The class name of the object handler.
 	*/
 	public function getClass() {
-		return (!empty($this->myFields['class']) ? (string) $this->myFields['class'] : 'HNOBJBasic');
+		static $cache;
+		if (!isset($cache)) {
+			$myXML = _FieldListStaticStorage::getXML($this->myTable);
+			$cache = (!empty($myXML['class']) ? (string) $myXML['class'] : 'HNOBJBasic');
+		}
+		return $cache;
 	}
 
 	/**
@@ -145,11 +120,12 @@ class FieldList
 	* @return array The extended field list.
 	*/
 	protected function getFieldList() {
+		$myXML = _FieldListStaticStorage::getXML($this->myTable);
 		$myExtFields = array();
-		foreach ($this->myFields->field AS $field)
+		foreach ($myXML->field AS $field)
 			$myExtFields[(string) $field['name']] = $field;
 
-		foreach ($this->myFields->subtable AS $table) {
+		foreach ($myXML->subtable AS $table) {
 			if (!isset($table['type']))
 				$table->addAttribute('type', 'rev_object');
 			$myExtFields[(string) $table['name']] = $table;
@@ -166,9 +142,10 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getReadable() {
-		if (!isset($this->cache['getReadable']))
-			$this->cache['getReadable'] = $this->check_fields_thingable('read');
-		return $this->cache['getReadable'];
+		static $cache;
+		if (!isset($cache))
+			$cache = $this->check_fields_thingable('read');
+		return $cache;
 	}
 
 	/**
@@ -179,9 +156,10 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getWriteable() {
-		if (!isset($this->cache['getWriteable']))
-			$this->cache['getWriteable'] = $this->check_fields_thingable('write');
-		return $this->cache['getWriteable'];
+		static $cache;
+		if (!isset($cache))
+			$cache = $this->check_fields_thingable('write');
+		return $cache;
 	}
 
 	/**
@@ -192,9 +170,10 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getInsertable() {
-		if (!isset($this->cache['getInsertable']))
-			$this->cache['getInsertable'] = $this->check_fields_thingable('insert');
-		return $this->cache['getInsertable'];
+		static $cache;
+		if (!isset($cache))
+			$cache = $this->check_fields_thingable('insert');
+		return $cache;
 	}
 
 	/**
@@ -204,9 +183,10 @@ class FieldList
 	* @return array The fields that passed the test.
 	*/
 	private function check_fields_thingable($action) {
+		$myXML = _FieldListStaticStorage::getXML($this->myTable);
 		// Set some internal variables
 		$okFields = array();
-		$tableOk = $this->checkIfInside($this->myFields[$action]);
+		$tableOk = $this->checkIfInside($myXML[$action]);
 
 		foreach ($this->getFieldList() AS $field) {
 			if ($field === false)
@@ -228,7 +208,12 @@ class FieldList
 	* @return boolean True if they are allowed to delete, false otherwise.
 	*/
 	public function isDeleteable() {
-		return $this->checkIfInside($this->myFields['delete']);
+		static $cache;
+		if (!isset($cache)) {
+			$myXML = _FieldListStaticStorage::getXML($this->myTable);
+			$cache = $this->checkIfInside($myXML['delete']);
+		}
+		return $cache;
 	}
 
 	/**
@@ -237,19 +222,23 @@ class FieldList
 	* @return mixed Returns a String if there is a unique field, Array if its a combined key or False if there is none at all.
 	*/
 	public function getIdField() {
-		if ($this->myFields->field[0]['key'] == 'auto' || $this->myFields->field[0]['key'] == 'unique') {
-			return (string) $this->myFields->field[0]['name'];
-		}
-		elseif ($this->myFields->field[0]['key'] == 'combined') {
-			$tmp = array((string) $this->myFields->field[0]['name']);
-			$counter = 1;
-			while ($this->myFields->field[$counter]['key'] == 'combined') {
-				$tmp[] = (string) $this->myFields->field[$counter]['name'];
-				$counter++;
+		static $cache;
+		if (!isset($cache)) {
+			$myXML = _FieldListStaticStorage::getXML($this->myTable);
+			if ($myXML->field[0]['key'] == 'auto' || $myXML->field[0]['key'] == 'unique') {
+				$cache = (string) $myXML->field[0]['name'];
+			} elseif ($myXML->field[0]['key'] == 'combined') {
+				$cache = array((string) $myXML->field[0]['name']);
+				$counter = 1;
+				while ($myXML->field[$counter]['key'] == 'combined') {
+					$cache[] = (string) $myXML->field[$counter]['name'];
+					$counter++;
+				}
+			} else {
+				$cache = false;
 			}
-			return $tmp;
 		}
-		return false;
+		return $cache;
 	}
 
 	/**
@@ -258,6 +247,32 @@ class FieldList
 	* @return boolean True if the ID Field is AutoId, false otherwise.
 	*/
 	public function hasAutoId() {
-		return ($this->myFields->field[0]['key'] == 'auto');
+		static $cache;
+		if (!isset($cache)) {
+			$myXML = _FieldListStaticStorage::getXML($this->myTable);
+			$cache = ($myXML->field[0]['key'] == 'auto');
+		}
+		return $cache;
+	}
+}
+
+/**
+* This class is simply to get these large SimpleXML objects out of the main object
+* so that var_dump and co are not overly large.
+*/
+class _FieldListStaticStorage
+{
+	private static $xmls = array();
+	public static function getXML($table) {
+		if (isset($xmls[$table]))
+			return $xmls[$table];
+		
+		$path = DBSTRUCT_PATH . '/' . $table . '.xml';
+		if (file_exists($path)) {
+			$xmls[$table] = simplexml_load_file($path);
+			return $xmls[$table];
+		}
+		
+		throw new Exception("FieldList failed to load XML for table '" .$table. "'");
 	}
 }
