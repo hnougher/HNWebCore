@@ -32,9 +32,9 @@ $config = array(
 
 	// Main Database
 	'MYSQL_HOST'		=> '127.0.0.1',
-	'MYSQL_USER'		=> 'hnwc_santos',
-	'MYSQL_PASS'		=> 'QysnwqUnwYHGR9cu',
-	'MYSQL_DATABASE'	=> 'hnwc_santos',
+	'MYSQL_USER'		=> 'hnwc',
+	'MYSQL_PASS'		=> 'RCWSn2su7MjJFp6F',
+	'MYSQL_DATABASE'	=> 'hnwc',
 	
 	// LDAP Database
 	'LDAP_ENABLED'		=> false,
