@@ -362,7 +362,7 @@ class HNTPLSelector extends HNTPLCore
 		$selector.find(".pageCtrlInfo").html("Page " + curpage + " of " + totalpage);
 
 		if ($selector.find("#srch").val() == "") {
-			if (totalpage == 1)
+			if (totalpage <= 1)
 				$selector.find(".pageCtrl").hide();
 			else
 				$selector.find(".pageCtrl").show();
