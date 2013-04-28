@@ -77,13 +77,13 @@ class FieldList
 	* @return string The tree base string.
 	*/
 	public function getLDAPBase() {
-		static $cache;
-		if (!isset($cache)) {
+		if (!isset($this->getLDAPBase)) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$cache = $myXML['LDAPBase'];
+			$this->getLDAPBase = $myXML['LDAPBase'];
 		}
-		return $cache;
+		return $this->getLDAPBase;
 	}
+	private $getLDAPBase;
 
 	/**
 	* Gets the object handler to be used when creating live objects of this.
@@ -91,13 +91,13 @@ class FieldList
 	* @return string The class name of the object handler.
 	*/
 	public function getClass() {
-		static $cache;
-		if (!isset($cache)) {
+		if (!isset($this->getClassCache)) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$cache = (!empty($myXML['class']) ? (string) $myXML['class'] : 'HNOBJBasic');
+			$this->getClassCache = (!empty($myXML['class']) ? (string) $myXML['class'] : 'HNOBJBasic');
 		}
-		return $cache;
+		return $this->getClassCache;
 	}
+	private $getClassCache;
 
 	/**
 	* Get the Fields Parameters
@@ -142,11 +142,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getReadable() {
-		static $cache;
-		if (!isset($cache))
-			$cache = $this->check_fields_thingable('read');
-		return $cache;
+		if (!isset($this->getReadableCache))
+			$this->getReadableCache = $this->check_fields_thingable('read');
+		return $this->getReadableCache;
 	}
+	private $getReadableCache;
 
 	/**
 	* Returns an array that can be used to restrict the fields that the current
@@ -156,11 +156,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getWriteable() {
-		static $cache;
-		if (!isset($cache))
-			$cache = $this->check_fields_thingable('write');
-		return $cache;
+		if (!isset($this->getWriteableCache))
+			$this->getWriteableCache = $this->check_fields_thingable('write');
+		return $this->getWriteableCache;
 	}
+	private $getWriteableCache;
 
 	/**
 	* Returns an array that can be used to restrict the fields that the current
@@ -170,11 +170,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getInsertable() {
-		static $cache;
-		if (!isset($cache))
-			$cache = $this->check_fields_thingable('insert');
-		return $cache;
+		if (!isset($this->getInsertableCache))
+			$this->getInsertableCache = $this->check_fields_thingable('insert');
+		return $this->getInsertableCache;
 	}
+	private $getInsertableCache;
 
 	/**
 	* Check if the given fields are able to do the given action.
@@ -208,13 +208,13 @@ class FieldList
 	* @return boolean True if they are allowed to delete, false otherwise.
 	*/
 	public function isDeleteable() {
-		static $cache;
-		if (!isset($cache)) {
+		if (!isset($this->isDeleteableCache)) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$cache = $this->checkIfInside($myXML['delete']);
+			$this->isDeleteableCache = $this->checkIfInside($myXML['delete']);
 		}
-		return $cache;
+		return $this->isDeleteableCache;
 	}
+	private $isDeleteableCache;
 
 	/**
 	* Gets the field name of the ID Field for this table.
@@ -222,24 +222,24 @@ class FieldList
 	* @return mixed Returns a String if there is a unique field, Array if its a combined key or False if there is none at all.
 	*/
 	public function getIdField() {
-		static $cache;
-		if (!isset($cache)) {
+		if (!isset($this->getIdFieldCache)) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
 			if ($myXML->field[0]['key'] == 'auto' || $myXML->field[0]['key'] == 'unique') {
-				$cache = (string) $myXML->field[0]['name'];
+				$this->getIdFieldCache = (string) $myXML->field[0]['name'];
 			} elseif ($myXML->field[0]['key'] == 'combined') {
-				$cache = array((string) $myXML->field[0]['name']);
+				$this->getIdFieldCache = array((string) $myXML->field[0]['name']);
 				$counter = 1;
 				while ($myXML->field[$counter]['key'] == 'combined') {
-					$cache[] = (string) $myXML->field[$counter]['name'];
+					$this->getIdFieldCache[] = (string) $myXML->field[$counter]['name'];
 					$counter++;
 				}
 			} else {
-				$cache = false;
+				$this->getIdFieldCache = false;
 			}
 		}
-		return $cache;
+		return $this->getIdFieldCache;
 	}
+	private $getIdFieldCache;
 
 	/**
 	* Checks if this table has an AutoID field for the ID Field.
@@ -247,13 +247,13 @@ class FieldList
 	* @return boolean True if the ID Field is AutoId, false otherwise.
 	*/
 	public function hasAutoId() {
-		static $cache;
-		if (!isset($cache)) {
+		if (!isset($this->hasAutoIdCache)) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$cache = ($myXML->field[0]['key'] == 'auto');
+			$this->hasAutoIdCache = ($myXML->field[0]['key'] == 'auto');
 		}
-		return $cache;
+		return $this->hasAutoIdCache;
 	}
+	private $hasAutoIdCache;
 }
 
 /**
