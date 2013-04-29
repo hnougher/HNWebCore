@@ -159,7 +159,6 @@ class Loader
 		// Do login if required
 		if (!isset($_SESSION['UserLoggedIn'])) {
 			if (!in_array(strtolower($query[0]), explode(',', NO_LOGIN_PAGES))) {
-			//if ($query[0] != 'root' && $query[0] != 'HELP') {
 				self::login_start();
 				die;
 			} else {
@@ -297,7 +296,7 @@ class Loader
 	 * in a different context to everything else here.
 	 * All variables defined in this function are available in the script.
 	 */
-	private static function run_script($path, $query, $HNTPL, $lots0param) {
+	public static function run_script($path, $query, $HNTPL, $lots0param) {
 		// Extract variables we wish to pass
 		foreach ($lots0param AS $lots0key => $lots0val)
 			${$lots0key} = $lots0val;

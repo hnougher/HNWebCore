@@ -301,6 +301,26 @@ class HNTPLForm extends HNTPLCore
 	}
 
 	/**
+	* This fills a select box with all the options from the given array.
+	* 
+	* @param HNTPLListSelect $select The select list to add the mob items to.
+	* @param HNMOBBasic|Array $array An Array based object to get the items from.
+	* @param string $valField The field name for the field used as the option value.
+	* @param string $textField The field name for the field used as the option text.
+	* @param string $select The option value that should be currently selected.
+	*/
+	public static function quick_select($select, $array, $valField, $textField = false, $selected = false) {
+		foreach ($array AS $obj) {
+			$value = $obj[$valField];
+			$select->new_option(
+				$value,
+				$textField === false ? false : $obj[$textField],
+				$selected !== false && ((string) $value) == $selected
+				);
+		}
+	}
+
+	/**
 	* Ouputs a form field from the database with correct type checking.
 	*
 	* @param string $label The label of the form row.
@@ -309,51 +329,75 @@ class HNTPLForm extends HNTPLCore
 	* @param array $ignore Used for enum and set fields. Values listed in here
 	*		will not be displayed for the user to use.
 	*/
-	public function output_form_field( $label, $field, $object, $ignore = array() )
-	{
-		$param = $object->getValParam( $field );
-		$value = $object[ $field ];
-		switch( $param['type'] )
-		{
+	public function output_form_field($label, $field, $object, $ignore = array()) {
+		$param = $object->getValParam($field);
+		$value = (isset($_POST[$field]) ? $_POST[$field] : $object[$field]);
+		switch ($param['type']) {
 			case 'bool':
-				$this->new_checkbox( $label, $field, $value );
+				$this->new_checkbox($label, $field, $value);
 				break;
 			case 'str':
-				if( !empty( $param['enum'] ) )
-				{
-					$enum = explode( '|', $param['enum'] );
-					$select = $this->new_select( $label, $field );
-					foreach( $enum AS $tmp )
-					{
-						if( !in_array( $tmp, $ignore ) )
-							$select->new_option( $tmp, null, ( $value == $tmp ) );
+				if (!empty($param['enum'])) {
+					$enum = explode('|', $param['enum']);
+					$select = $this->new_select($label, $field);
+					foreach ($enum AS $tmp) {
+						if (!in_array($tmp, $ignore))
+							$select->new_option($tmp, null, ($value == $tmp));
 					}
-					break;
-				}
-				if( !empty( $param['set'] ) )
-				{
-					$value = explode( ',', $value );
-					$enum = explode( '|', $param['set'] );
-					$select = $this->new_select( $label, $field. '[]', 5, true );
-					foreach( $enum AS $tmp )
-					{
-						if( !in_array( $tmp, $ignore ) )
-							$select->new_option( $tmp, null, in_array( $tmp, $value ) );
+				} elseif (!empty($param['set'])) {
+					$value = explode(',', $value);
+					$enum = explode('|', $param['set']);
+					$select = $this->new_select( $label, $field. '[]', 5, true);
+					foreach ($enum AS $tmp) {
+						if (!in_array($tmp, $ignore))
+							$select->new_option($tmp, null, in_array($tmp, $value));
 					}
-					break;
+				} elseif (!empty($param['password']))
+					$this->new_password($label, $field);
+				elseif (empty($param['max']) || $param['max'] > 512)
+					$this->new_textarea($label, $field, $value);
+				else
+					$this->new_text($label, $field, $value);
+				break;
+			case 'int':
+			case 'float':
+				$this->new_text($label, $field, $value);
+				break;
+			case 'object':
+				$this->new_label($label, $object->replaceFields('{' .$field. '}'));
+		}
+	}
+	
+	/**
+	* Saves a form field back to the database with correct type.
+	*
+	* @param string $field The name of the field that we are dealing with.
+	* @param HNOBJBasic $object The object that the field is to be collected from.
+	*/
+	public static function save_form_value($field, $object) {
+		$param = $object->getValParam($field);
+		switch ($param['type']) {
+			case 'bool':
+				$object[$field] = isset($_POST[$field]);
+				break;
+			case 'object':
+				$object[$field] = intval($_POST[$field]);
+				break;
+			case 'str':
+				if (!empty($param['set'])) {
+					#var_dump($_POST[$field]);
+					$_POST[$field] = implode(',', $_POST[$field]);
 				}
-				if( !empty( $param['password'] ) )
-				{
-					$this->new_password( $label, $field );
-					break;
+				if (!empty($param['password'])) {
+					if (empty($_POST[$field]))
+						return false;
+					$_POST[$field] = md5($_POST[$field]);
 				}
 			case 'int':
 			case 'float':
-				$this->new_text( $label, $field, $value );
-				break;
-			case 'object':
-				$this->new_label( $label, $object->replaceFields( '{' .$field. '}' ) );
+				$object[$field] = $_POST[$field];
 		}
+		return !empty($_POST[$field]);
 	}
 
 	/**
