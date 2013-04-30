@@ -18,6 +18,8 @@ require_once CLASS_PATH. '/HNDB.class.php';
 */
 class HNMySQL extends HNDB
 {
+	const DATE_FORMAT = 'Y-m-d';
+	const TIME_FORMAT = 'H:i:s';
 	const DATETIME_FORMAT = 'Y-m-d H:i:s';
 
 	/**
