@@ -30,6 +30,17 @@ $config = array(
 	'SERVER_EMAIL'		=> '', // The server will send emails from this email
 	'ADMIN_EMAILS'		=> '', // (comma seperated) Emails about system errors will be sent here
 
+	// Mail (uncomment what you want/need)
+	// See http://pear.php.net/manual/en/package.mail.mail.factory.php
+	'MAIL_BACKEND'		=> 'smtp',	// mail, smtp, sendmail
+	#'MAIL_SENDMAIL_PATH'	=> '',	// Default: /usr/bin/sendmail
+	#'MAIL_SENDMAIL_ARGS'	=> '',	// Default: -i
+	#'MAIL_SMTP_HOST'	=> '',		// <host>[:<port>] Default: localhost:25
+	#'MAIL_SMTP_AUTH'	=> '',		// <user>[:<pass>] Default: NONE
+	'MAIL_SMTP_TIMEOUT'	=> 30,		// Default: NULL
+	'MAIL_SMTP_DEBUG'	=> true,	// Default: FALSE
+	'MAIL_SMTP_PERSIST'	=> true,	// Default: FALSE. Note: only a hint as there are hacks involved.
+
 	// Main Database
 	'MYSQL_HOST'		=> '127.0.0.1',
 	'MYSQL_USER'		=> 'hnwc',
@@ -60,10 +71,14 @@ $config = array(
 
 
 // ############### DO NOT CHANGE BELOW HERE! #################
-// Set the Constants
-foreach( $config AS $const => $value )
-{
-	if( !defined( $const ) )
-		define( $const, $value );
+// Update Include Path
+if (isset($config['INCLUDE_PATH'])) {
+	set_include_path('.' . PATH_SEPARATOR . implode(PATH_SEPARATOR, $config['INCLUDE_PATH']));
+	unset($config['INCLUDE_PATH']);
 }
-unset( $config, $const, $value );
+// Set the Constants
+foreach ($config AS $const => $value) {
+	if (!defined($const))
+		define($const, $value);
+}
+unset($config, $const, $value);
