@@ -195,7 +195,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return boolean True if it is now loaded, false otherwise.
 	*/
 	public function checkLoaded($loadNow = false) {
-		if ($this->status == self::LOADED)
+		if ($this->status == self::NO_RECORD || $this->status == self::LOADED)
 			return true;
 		if ($loadNow)
 			return $this->load();
