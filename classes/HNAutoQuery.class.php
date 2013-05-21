@@ -338,6 +338,15 @@ class HNAutoQuery_Linker
 	}
 
 	/**
+	* Adds a new section to the SQL query in raw format.
+	* 
+	* @param string $sql The SQL to AND into the WHERE section of the final query produced.
+	*/
+	public function new_where_raw($sql) {
+		$this->where[] = $sql;
+	}
+
+	/**
 	* Add a new field to go in the GROUP BY clause of the SQL query.
 	* 
 	* @param string $groupField The field to group by.
