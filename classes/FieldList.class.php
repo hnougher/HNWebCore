@@ -25,6 +25,8 @@ class FieldList
 	public static function loadFieldList($table) {
 		static $fieldLists = array();
 		$userTypes = (empty($GLOBALS['uo']) ? array('all' => 0) : $GLOBALS['uo']->user_types());
+		if (defined('HNWC_CRON'))
+			$userTypes['cron'] = 0;
 		if (!isset($fieldLists[$table]) || $fieldLists[$table][1] != array_keys($userTypes)) {
 			// Need to create a new Field List
 			$fieldLists[$table] = array(
@@ -63,8 +65,9 @@ class FieldList
 		if (!empty($GLOBALS['uo']))
 			return $GLOBALS['uo']->testUserType($toCheck);
 		
-		// Fallback for when they are not logged in yet
-		if (preg_match('/^all | all | all$|^all$/', $toCheck))
+		// Fallback for when they are not logged in yet or under cron
+		$types = (defined('HNWC_CRON') ? 'all|cron' : 'all');
+		if (preg_match('/(^| )(' .$types. ')( |$)/', $toCheck))
 			return true;
 		return false;
 	}
