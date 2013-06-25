@@ -81,15 +81,14 @@ class HNTPLMainTypes extends HNTPLCore
 	* @param integer $height Set the height of the image..
 	* @uses new_tag()
 	*/
-	public function new_image( $src, $width = 0, $height = 0 )
-	{
+	public function new_image($src, $width = 0, $height = 0) {
 		$style = array();
-		if( $width != 0 )
+		if ($width != 0)
 			$style['width'] = $width. 'px';
-		if( $height != 0 )
+		if ($height != 0)
 			$style['height'] = $height. 'px';
-		$attrib = array( 'src' => $src, 'style' => $style );
-		$this->new_tag( 'img', $attrib );
+		$attrib = array('src' => $src, 'style' => $style);
+		$this->new_tag('img', $attrib);
 		
 	}
 
@@ -101,10 +100,9 @@ class HNTPLMainTypes extends HNTPLCore
 	* @uses HNTPLListStatic
 	* @uses new_raw()
 	*/
-	public function new_list( $isOrdered = false )
-	{
-		$content = new HNTPLListStatic( $isOrdered );
-		$this->new_raw( $content );
+	public function new_list($isOrdered = false) {
+		$content = new HNTPLListStatic($isOrdered);
+		$this->new_raw($content);
 		return $content;
 	}
 
@@ -117,10 +115,22 @@ class HNTPLMainTypes extends HNTPLCore
 	* @uses HNTPLForm
 	* @uses new_raw()
 	*/
-	public function new_form( $title = '', $submitTo = false, $formMethod = false )
-	{
-		$content = new HNTPLForm( $title, $submitTo, $formMethod );
-		$this->new_raw( $content );
+	public function new_form($title = '', $submitTo = false, $formMethod = false) {
+		require_once TEMPLATE_PATH. '/form.php';
+		$content = new HNTPLForm($title, $submitTo, $formMethod);
+		$this->new_raw($content);
+		return $content;
+	}
+
+	/**
+	* Adds a new graph.
+	* 
+	* @see HNTPLGraph::__construct()
+	*/
+	public function new_graph($graphType, $rawData, $lineNames, $groupNames) {
+		require_once TEMPLATE_PATH. '/graph.php';
+		$content = new HNTPLGraph($graphType, $rawData, $lineNames, $groupNames);
+		$this->new_raw($content);
 		return $content;
 	}
 
@@ -130,6 +140,7 @@ class HNTPLMainTypes extends HNTPLCore
 	* @see HNTPLSelector::__construct()
 	*/
 	public function new_selector($type, $queryCode, $uri, $fieldNames = array()) {
+		require_once TEMPLATE_PATH. '/selector.php';
 		$content = new HNTPLSelector($type, $queryCode, $uri, $fieldNames);
 		$this->new_raw($content);
 		return $content;
@@ -142,10 +153,10 @@ class HNTPLMainTypes extends HNTPLCore
 	* @uses HNTPLTable
 	* @uses new_raw()
 	*/
-	public function new_table()
-	{
+	public function new_table() {
+		require_once TEMPLATE_PATH. '/table.php';
 		$content = new HNTPLTable();
-		$this->new_raw( $content );
+		$this->new_raw($content);
 		return $content;
 	}
 	
@@ -167,8 +178,3 @@ class HNTPLMainTypes extends HNTPLCore
 		$this->new_tag('input', $attrib);
 	}
 }
-
-require_once TEMPLATE_PATH. '/form.php';
-require_once TEMPLATE_PATH. '/table.php';
-require_once TEMPLATE_PATH. '/selector.php';
-

@@ -175,8 +175,7 @@ class HNTPLPage extends HNTPLMainTypes
 			// Output the page
 			parent::output();
 		}
-		else
-		{
+		else {
 			$EOL = "\n";
 			$templatePath = TEMPLATE_PATH. '/' .(empty($this->subTemplate) ? 'default' : $this->subTemplate). '.page.php';
 			$templateVars = array(
@@ -193,7 +192,7 @@ class HNTPLPage extends HNTPLMainTypes
 				echo '<title>' .$this->title. '</title>' .$EOL;
 				echo '<meta name="description" content="' .SITE_DESCRIPTION. '">' .$EOL;
 				echo '<meta name="keywords" content="' .SITE_KEYWORDS. '">' .$EOL;
-
+				
 				// Show a sub template head
 				$templateVars['SECTION'] = 'head';
 				Loader::run_script($templatePath, null, null, $templateVars);
@@ -222,7 +221,7 @@ class HNTPLPage extends HNTPLMainTypes
 			
 			echo '</body></html>';
 		}
-
+		
 		if ($capture)
 			return ob_get_clean();
 	}
