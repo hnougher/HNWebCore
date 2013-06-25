@@ -301,8 +301,9 @@ class Loader
 		// Check that the found path is in the allowed directory
 		if (substr($pagePath, 0, strlen(PAGE_PATH)) != PAGE_PATH) {
 			// Hey! Thats not allowed!
-			if (DEBUG) die('Page "' .$pagePath. '" does not exist in "' .PAGE_PATH. '"!');
-			die('Page does not exist!');
+			if (DEBUG) $HNTPL->new_plaintext('Page "' .$pagePath. '" does not exist in "' .PAGE_PATH. '"!');
+			else $HNTPL->new_plaintext('Page does not exist!');
+			return;
 		}
 		
 		// See if there is a help file
