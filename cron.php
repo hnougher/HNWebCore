@@ -23,6 +23,8 @@ require_once CLASS_PATH. '/FieldList.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
 require_once CLASS_PATH. '/HNAutoQuery.class.php';
+require_once CLASS_PATH. '/HNMail.php';
+
 HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
 
 function out($str) {
@@ -53,7 +55,7 @@ class CRON
 					if (!empty($nextRun[$file]) && time() < $nextRun[$file])
 						continue;
 					
-					// Make certain that there is a lastRin value
+					// Make certain that there is a lastRun value
 					if (empty($lastRun[$file]))
 						$lastRun[$file] = 0;
 					
