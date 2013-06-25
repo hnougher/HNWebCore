@@ -30,7 +30,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* Contains an array of HNOBJBasic objects that this class found.
-	* Can also contain _MOBType objects which define how to load an HNOBJBasic.
+	* Can also contain _OBJPrototype objects which define how to load an HNOBJBasic.
 	* @var array
 	*/
 	protected $objectList = array();
@@ -279,7 +279,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 
 		// Load all the objects
-		unset($result['count']); // Done want LDAP count
+		unset($result['count']); // Dont want LDAP count
+		$table = $this->fieldList->getTable();
 		if ($loadChildren) {
 			$idFields = $this->fieldList->getIdField();
 			foreach ($result as $row) {
@@ -288,13 +289,13 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 				foreach ((array) $idFields AS $idField)
 					$idSet[] = (isset($row[$idField]) ? $row[$idField] : 0);
 				
-				$this->objectList[] = new _MOBType($idSet, $row);
+				$this->objectList[] = new _OBJPrototype($table, $idSet, $row);
 			}
 		}
 		else {
 			foreach ($result as $row) {
 				unset($row['count']); // Done want LDAP count
-				$this->objectList[] = new _MOBType(array_values($row));
+				$this->objectList[] = new _OBJPrototype($table, array_values($row));
 			}
 		}
 	}
@@ -370,6 +371,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 
 		// Load all the objects
+		$table = $this->fieldList->getTable();
 		if ($loadChildren) {
 			$idFields = $this->fieldList->getIdField();
 			while ($row = $result->fetch_assoc()) {
@@ -381,12 +383,12 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 				if ($this->parentIdField != 'NONE')
 					$obj->set_reverse_link($this->parentIdField, $this->parentObj);
 				$this->objectList[] = $obj;*/
-				$this->objectList[] = new _MOBType($idSet, $row);
+				$this->objectList[] = new _OBJPrototype($table, $idSet, $row);
 			}
 		}
 		else {
 			while ($row = $result->fetch_row()) {
-				$this->objectList[] = new _MOBType($row);
+				$this->objectList[] = new _OBJPrototype($table, $row);
 			}
 		}
 
@@ -500,11 +502,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		
 		// Check if progressive creation of HNOBJ for offset is needed
 		$object = $this->objectList[$offset];
-		if ($object instanceof _MOBType) {
-			$mobType = $object;
-			$object = HNOBJBasic::loadObject($this->fieldList->getTable(), $mobType->id, false, $this->fieldList);
-			if ($mobType->data !== false)
-				$object->_internal_set_data($mobType->data);
+		if ($object instanceof _OBJPrototype) {
+			$object = $object->getUpgrade(false, $this->fieldList);
 			if (!empty($this->parentObj) && $this->parentIdField != 'NONE')
 				$object->set_reverse_link($this->parentIdField, $this->parentObj);
 			$this->objectList[$offset] = $object;
@@ -565,27 +564,5 @@ class HNMOBBasicIterator implements Iterator
 
 	public function valid() {
 		return $this->MOB->offsetExists($this->cur);
-	}
-}
-
-/**
-* This is a type which is stored in the MOB until it row is loaded.
-*/
-class _MOBType
-{
-	public $id; // Array of ID values which matches the number in the DBStruct
-	public $data; // false = no data, array = has data to load OBJ
-	public function __construct($id, $data = false) {
-		$this->id = $id;
-		$this->data = $data;
-	}
-	
-	/**
-	* @see HNOBJBasic::getId()
-	*/
-	public function getId() {
-		if (count($this->id) == 1)
-			return $this->id[0];
-		return $this->id;
 	}
 }

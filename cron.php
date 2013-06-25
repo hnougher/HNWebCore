@@ -12,16 +12,18 @@
 // Lets get started!
 $GLOBALS['ScriptStartTime'] = microtime(1);
 require_once 'config.php';
+define('HNWC_CRON', true);
+define('CRON_DATA_FILE', CRON_PATH.'/!cron_data.php');
+date_default_timezone_set(SERVER_TIMEZONE);
+
+// Default Includes
 require_once CLASS_PATH. '/ErrorHandler.class.php';
 require_once CLASS_PATH. '/HNMySQL.class.php';
 require_once CLASS_PATH. '/FieldList.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
 require_once CLASS_PATH. '/HNAutoQuery.class.php';
-date_default_timezone_set(SERVER_TIMEZONE);
 HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
-define('HNWC_CRON', true);
-define('CRON_DATA_FILE', CRON_PATH.'/!cron_data.php');
 
 function out($str) {
 	echo $str . "\n";

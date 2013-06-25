@@ -25,6 +25,8 @@ class FieldList
 	public static function loadFieldList($table) {
 		static $fieldLists = array();
 		$userTypes = (empty($GLOBALS['uo']) ? array('all' => 0) : $GLOBALS['uo']->user_types());
+		if (defined('HNWC_CRON'))
+			$userTypes['cron'] = 0;
 		if (!isset($fieldLists[$table]) || $fieldLists[$table][1] != array_keys($userTypes)) {
 			// Need to create a new Field List
 			$fieldLists[$table] = array(
@@ -35,17 +37,22 @@ class FieldList
 		return $fieldLists[$table][0];
 	}
 	
-	/**
-	* Contains the table this instance is related to.
-	* @var string
-	*/
-	protected $myTable = '';
+	/** Contains the table this instance is related to. */
+	protected $myTable;
+
+	/** Unique ID for this class instance which is used for the storage cache. */
+	private $FLID;
 
 	/**
 	* @param string $table The table that this instance is to deal with.
 	*/
 	public function __construct($table) {
 		$this->myTable = $table;
+		$this->FLID = _FieldListStaticStorage::getUniqueC();
+		_FieldListStaticStorage::$C[$this->FLID] = array();
+	}
+	public function __destruct() {
+		unset(_FieldListStaticStorage::$C[$this->FLID]);
 	}
 
 	/**
@@ -58,8 +65,9 @@ class FieldList
 		if (!empty($GLOBALS['uo']))
 			return $GLOBALS['uo']->testUserType($toCheck);
 		
-		// Fallback for when they are not logged in yet
-		if (preg_match('/^all | all | all$|^all$/', $toCheck))
+		// Fallback for when they are not logged in yet or under cron
+		$types = (defined('HNWC_CRON') ? 'all|cron' : 'all');
+		if (preg_match('/(^| )(' .$types. ')( |$)/', $toCheck))
 			return true;
 		return false;
 	}
@@ -142,11 +150,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getReadable() {
-		if (!isset($this->getReadableCache))
-			$this->getReadableCache = $this->check_fields_thingable('read');
-		return $this->getReadableCache;
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::GET_READABLE]))
+			$C[self::GET_READABLE] = $this->check_fields_thingable('read');
+		return $C[self::GET_READABLE];
 	}
-	private $getReadableCache;
 
 	/**
 	* Returns an array that can be used to restrict the fields that the current
@@ -156,11 +164,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getWriteable() {
-		if (!isset($this->getWriteableCache))
-			$this->getWriteableCache = $this->check_fields_thingable('write');
-		return $this->getWriteableCache;
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::GET_WRITEABLE]))
+			$C[self::GET_WRITEABLE] = $this->check_fields_thingable('write');
+		return $C[self::GET_WRITEABLE];
 	}
-	private $getWriteableCache;
 
 	/**
 	* Returns an array that can be used to restrict the fields that the current
@@ -170,11 +178,11 @@ class FieldList
 	* @return array An array of records like 'array('name'=>'fieldname','type'=>'int','max'=>'123')
 	*/
 	public function getInsertable() {
-		if (!isset($this->getInsertableCache))
-			$this->getInsertableCache = $this->check_fields_thingable('insert');
-		return $this->getInsertableCache;
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::GET_INSERTABLE]))
+			$C[self::GET_INSERTABLE] = $this->check_fields_thingable('insert');
+		return $C[self::GET_INSERTABLE];
 	}
-	private $getInsertableCache;
 
 	/**
 	* Check if the given fields are able to do the given action.
@@ -208,13 +216,13 @@ class FieldList
 	* @return boolean True if they are allowed to delete, false otherwise.
 	*/
 	public function isDeleteable() {
-		if (!isset($this->isDeleteableCache)) {
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::GET_DELETEABLE])) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$this->isDeleteableCache = $this->checkIfInside($myXML['delete']);
+			$C[self::GET_DELETEABLE] = $this->checkIfInside($myXML['delete']);
 		}
-		return $this->isDeleteableCache;
+		return $C[self::GET_DELETEABLE];
 	}
-	private $isDeleteableCache;
 
 	/**
 	* Gets the field name of the ID Field for this table.
@@ -222,24 +230,24 @@ class FieldList
 	* @return mixed Returns a String if there is a unique field, Array if its a combined key or False if there is none at all.
 	*/
 	public function getIdField() {
-		if (!isset($this->getIdFieldCache)) {
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::GET_IDFIELD])) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
 			if ($myXML->field[0]['key'] == 'auto' || $myXML->field[0]['key'] == 'unique') {
-				$this->getIdFieldCache = (string) $myXML->field[0]['name'];
+				$C[self::GET_IDFIELD] = (string) $myXML->field[0]['name'];
 			} elseif ($myXML->field[0]['key'] == 'combined') {
-				$this->getIdFieldCache = array((string) $myXML->field[0]['name']);
+				$C[self::GET_IDFIELD] = array((string) $myXML->field[0]['name']);
 				$counter = 1;
 				while ($myXML->field[$counter]['key'] == 'combined') {
-					$this->getIdFieldCache[] = (string) $myXML->field[$counter]['name'];
+					$C[self::GET_IDFIELD][] = (string) $myXML->field[$counter]['name'];
 					$counter++;
 				}
 			} else {
-				$this->getIdFieldCache = false;
+				$C[self::GET_IDFIELD] = false;
 			}
 		}
-		return $this->getIdFieldCache;
+		return $C[self::GET_IDFIELD];
 	}
-	private $getIdFieldCache;
 
 	/**
 	* Checks if this table has an AutoID field for the ID Field.
@@ -247,13 +255,21 @@ class FieldList
 	* @return boolean True if the ID Field is AutoId, false otherwise.
 	*/
 	public function hasAutoId() {
-		if (!isset($this->hasAutoIdCache)) {
+		$C =& _FieldListStaticStorage::$C[$this->FLID];
+		if (!isset($C[self::HAS_AUTOID])) {
 			$myXML = _FieldListStaticStorage::getXML($this->myTable);
-			$this->hasAutoIdCache = ($myXML->field[0]['key'] == 'auto');
+			$C[self::HAS_AUTOID] = ($myXML->field[0]['key'] == 'auto');
 		}
-		return $this->hasAutoIdCache;
+		return $C[self::HAS_AUTOID];
 	}
-	private $hasAutoIdCache;
+	
+	// CONSTs for _FieldListStaticStorage
+	const GET_READABLE = 1;
+	const GET_WRITEABLE = 2;
+	const GET_INSERTABLE = 3;
+	const GET_DELETEABLE = 4;
+	const GET_IDFIELD = 5;
+	const HAS_AUTOID = 6;
 }
 
 /**
@@ -262,6 +278,13 @@ class FieldList
 */
 class _FieldListStaticStorage
 {
+	// @see CONSTs in bottom of main class
+	public static $C = array();
+	public static function getUniqueC() {
+		static $counter = 0;
+		return $counter++;
+	}
+
 	private static $xmls = array();
 	public static function getXML($table) {
 		if (isset($xmls[$table]))

@@ -58,7 +58,7 @@ class HNMySQL extends HNDB
 		$stmt = self::$conn->prepare($sql);
 		if (!$stmt) {
 			if (DEBUG)
-				throw new HNDBException('Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY);
+				throw new HNDBException('Query Error: ' .self::$conn->error. '. SQL="' .$sql. '"', HNDBException::BAD_QUERY);
 			else
 				throw new HNDBException('Query Error: ' .self::$conn->error, HNDBException::BAD_QUERY);
 		}
@@ -80,7 +80,7 @@ class HNMySQL extends HNDB
 		$result = self::$conn->query($sql, $resultMode);
 		if ($result === false) {
 			if (DEBUG)
-				throw new HNDBException('Query Error: SQL="' .$sql. '", ERROR="' .self::$conn->error. '"', HNDBException::BAD_QUERY);
+				throw new HNDBException('Query Error: ' .self::$conn->error. '. SQL="' .$sql. '"', HNDBException::BAD_QUERY);
 			else
 				throw new HNDBException('Query Error: ' .self::$conn->error, HNDBException::BAD_QUERY);
 		}

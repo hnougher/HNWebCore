@@ -184,10 +184,22 @@ class Loader
 
 		// Display the page
 		$HNTPL = new HNTPLPage(SITE_TITLE, false);
-		$return = self::run_page($HNTPL, $query, array('uo' => $uo));
+		try {
+			$return = self::run_page($HNTPL, $query, array('uo' => $uo));
+		} catch (Exception $e) {
+			ob_start();
+			printf("<b>Uncaught page exception</b> '%s' with message '%s'<br/>",
+				$HNTPL->escape_text(get_class($e)),
+				$HNTPL->escape_text($e->getMessage()));
+			echo str_replace("\n", "<br/>", $e->getTraceAsString());
+			printf("<br/>thrown in <b>%s</b> on line <b>%s</b><br/>",
+				$HNTPL->escape_text($e->getFile()),
+				$e->getLine());
+			$HNTPL->new_raw('<br/>' . ob_get_clean());
+		}
 
 		// Check if we are redirecting
-		if (is_string($return)) {
+		if (isset($return) && is_string($return)) {
 			// Redirect the client
 			$location = SERVER_ADDRESS.$return.(isset($_REQUEST['noTemplate']) ? '&noTemplate=1' : '');
 			header('Location: ' .$location);
@@ -252,6 +264,17 @@ class Loader
 		
 		foreach ($MOBStats[2] AS $table => $total)
 			$out .= "\n\t$table: $total, " .($total - $MOBStats[3][$table]);
+		
+		$MOBProtoStats = _MOBPrototype::getObjectCounts();
+		$OBJProtoStats = _OBJPrototype::getObjectCounts();
+		$out .= sprintf( "\n<b>Total OBJProto Created:</b> %d\n<b>Total OBJProto Unused:</b> %d\n<b>Current OBJProto:</b> %d\n<b>Total MOBProto Created:</b> %d\n<b>Total MOBProto Unused:</b> %d\n<b>Current MOBProto:</b> %d",
+			$OBJProtoStats[0],
+			$OBJProtoStats[0] - $OBJProtoStats[1],
+			$OBJProtoStats[0] - $OBJProtoStats[2],
+			$MOBProtoStats[0],
+			$MOBProtoStats[0] - $MOBProtoStats[1],
+			$MOBProtoStats[0] - $MOBProtoStats[2]
+			);
 		
 		return $out;
 	}

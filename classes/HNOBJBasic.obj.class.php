@@ -250,8 +250,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return array The field parameters.
 	*/
 	public function getValParam($field) {
-		if (!$this->checkLoaded(true))
-			return false;
 		$fields = $this->fieldList->getReadable();
 		return (isset($fields[$field]) ? $fields[$field] : false);
 	}
@@ -398,16 +396,13 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$this->myData[$name] = (boolean) $dataArray[$name];
 			elseif ($fieldInfo['type'] == 'byte')
 				$this->myData[$name] = ord($dataArray[$name]);
-			elseif ($fieldInfo['type'] == 'array') {
+			elseif ($fieldInfo['type'] == 'array')
 				$this->myData[$name] = (array) $dataArray[$name];
-				if (empty($this->myData[$name]['count']))
-					$this->myData[$name]['count'] = 1;
-			}
 			elseif ($fieldInfo['type'] == 'object') {
-				if (isset($oldData[$name]) && $oldData[$name] instanceof HNOBJBasic && $oldData[$name]->getId() == $dataArray[$name])
+				if (isset($oldData[$name]) && $oldData[$name]->getId() == $dataArray[$name])
 					$this->myData[$name] = $oldData[$name];
 				else
-					$this->myData[$name] = array(1, $fieldInfo['table'], $dataArray[$name]);
+					$this->myData[$name] = new _OBJPrototype($fieldInfo['table'], $dataArray[$name]);
 			}
 			elseif ($fieldInfo['type'] == 'rev_object') {
 				if (isset($oldData[$name])) {
@@ -416,7 +411,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				else {
 					$newField = (!empty($fieldInfo['field']) ? $fieldInfo['field'] : $this->fieldList->getIdField());
 					#$this->myData[$name] = new HNMOBBasic($fieldInfo['table'], $newField, $this->getId(), $this);
-					$this->myData[$name] = array(2, $fieldInfo['table'], $newField);
+					$this->myData[$name] = new _MOBPrototype($fieldInfo['table'], $newField);
 				}
 			}
 		}
@@ -636,15 +631,18 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			trigger_error('No such field "' .$field. '" in "' .$this->getTable(). '" or unauthorised', E_USER_WARNING);
 			return false;
 		}
-		if (is_array($this->myData[$field]) && empty($this->myData[$field]['count'])) {
-			$setupInfo = $this->myData[$field];
-			if ($setupInfo[0] == 1) {
-				$this->myData[$field] = HNOBJBasic::loadObject($setupInfo[1], $setupInfo[2]);
-			} else {
-				$this->myData[$field] = new HNMOBBasic($setupInfo[1], $setupInfo[2], $this->getId(), $this);
-			}
+		
+		$fieldData = $this->myData[$field];
+		if ($fieldData instanceof _MOBOBJPrototype) {
+			if ($fieldData instanceof _OBJPrototype)
+				$this->myData[$field] = $fieldData->getUpgrade();
+			elseif ($fieldData instanceof _MOBPrototype)
+				$this->myData[$field] = $fieldData->getUpgrade($this);
+			else
+				throw new Exception('Unknown instance of _MOBOBJPrototype found as ' .get_class($fieldData));
+			$fieldData = $this->myData[$field];
 		}
-		return $this->myData[$field];
+		return $fieldData;
 	}
 
 	/**
@@ -679,13 +677,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		case 'rev_object':
 			throw new Exception('Attempt to set a MOB field');
 		case 'object':
-			if (!is_object($value)) {
-				// Convert ID to object of correct type
+			if (!is_object($value) || !($value instanceof HNOBJBasic))
 				$value = self::loadObject($fieldParam['table'], $value);
-			}
-			elseif ($value->getTable() != $fieldParam['table']) {
+			elseif ($value->getTable() != $fieldParam['table'])
 				throw new Exception('Attempt to set OBJ of wrong table in link field');
-			}
 			break;
 		case 'byte':
 			if (is_array($value)) {
@@ -755,3 +750,71 @@ class HNOBJBasicIterator implements Iterator
 		return ($this->cur < count($this->theFields));
 	}
 }
+
+abstract class _MOBOBJPrototype {}; // This first Prototype is for simplfying logic
+class _MOBPrototype extends _MOBOBJPrototype
+{
+	private static $totalCreated = 0;
+	private static $totalUpgraded = 0;
+	private static $totalDestroyed = 0;
+	public static function getObjectCounts() {
+		return array(self::$totalCreated,self::$totalUpgraded,self::$totalDestroyed);
+	}
+
+	public $table; // The table the MOB is to be loaded with
+	public $field; // The ID field needed to load the MOB
+	public function __construct($table, $field) {
+		$this->table = $table;
+		$this->field = $field;
+		self::$totalCreated++;
+	}
+	public function __destruct() {
+		self::$totalDestroyed++;
+	}
+	
+	public function getUpgrade($parent, $loadNow = false) {
+		self::$totalUpgraded++;
+		return new HNMOBBasic($this->table, $this->field, $parent->getId(), $parent, $loadNow);
+	}
+}
+class _OBJPrototype extends _MOBOBJPrototype
+{
+	private static $totalCreated = 0;
+	private static $totalUpgraded = 0;
+	private static $totalDestroyed = 0;
+	public static function getObjectCounts() {
+		return array(self::$totalCreated,self::$totalUpgraded,self::$totalDestroyed);
+	}
+
+	public $class; // Class the OBJ should be loaded with
+	public $myId; // The ID field values needed to load the OBJ
+	public $data; // OPTIONAL Prefill data that the OBJ is to be loaded with
+	public function __construct($class, $myId, $data = null) {
+		$this->class = $class;
+		$this->myId = $myId;
+		if ($data !== null)
+			$this->data = $data;
+		self::$totalCreated++;
+	}
+	public function __destruct() {
+		self::$totalDestroyed++;
+	}
+	
+	public function getUpgrade($loadNow = false, $fieldList = false) {
+		self::$totalUpgraded++;
+		$object = HNOBJBasic::loadObject($this->class, $this->myId, $loadNow, $fieldList);
+		if (isset($this->data))
+			$object->_internal_set_data($this->data);
+		return $object;
+	}
+	
+	/**
+	* @see HNOBJBasic::getId()
+	*/
+	public function getId() {
+		if (count($this->myId) == 1)
+			return $this->myId[0];
+		return $this->myId;
+	}
+}
+

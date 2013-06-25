@@ -53,36 +53,51 @@ class ErrorHandler
 	* @param integer $errLine Contains the line number the error was raised at.
 	* @see set_error_handler()
 	*/
-	public static function handler( $errNo, $errStr, $errFile, $errLine )
-	{
-		$fatals = array( E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR );
-		if( self::$processErrors || in_array( $errNo, $fatals ) )
-		{
-			echo self::$errorType[ $errNo ]. ': ';
+	public static function handler($errNo, $errStr, $errFile, $errLine) {
+		$fatals = array(E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR);
+		if (self::$processErrors || in_array($errNo, $fatals)) {
+			echo self::$errorType[$errNo]. ': ';
 			echo "$errStr in '$errFile' on line $errLine.\n";
 
-			if( DEBUG )
-			{
+			if (DEBUG) {
 				ob_start();
 					debug_print_backtrace();
 				$dt = ob_get_clean();
 				$dt = self::replaceFieldList($dt);
-				echo str_replace( MYSQL_PASS, '********', $dt );
 				echo "\n";
 			}
 		}
 
-		if( in_array( $errNo, $fatals ) )
+		if (in_array($errNo, $fatals))
 			die;
 	}
 	
-	private static function replaceFieldList($str) {
+	/*private static function replaceFieldList($str) {
 		$start = -1;
+		$ostr = $str;
 		while (($start = strpos($str, 'Object (', $start + 1)) !== false) {
+			$start += 7;
 			$part1 = substr($str, 0, $start);
 			$part2 = substr($str, $start);
 			$str = $part1 . preg_replace("#\s\(((?>[^\(\)]+)|(?R))*\)#x", "*", $part2, 1);
+			if ($start >= strlen($str))
+				break;
 		}
+		return $ostr . "\n" . $str;
+	}*/
+	public static function replaceFieldList($str) {
+		// Strip contents of Objects and Arrays
+		$m1 = '\(\.{0,3}\)'; // Match (...) and (..) and (.) and ()
+		$m2 = '(?:(Object|Array) \()'; // Match "Object (" and "Array ("
+		$m3 = '[^\(\)]*'; // Match all non ( and ) chars
+		$exp = '#' .$m2. '(?>(?:' .$m1. '|' .$m3. ')*)\)#';
+		do {
+			$oldStrLen = strlen($str);
+			$str = preg_replace($exp, "$1*", $str);
+		} while ($oldStrLen != strlen($str));
+		
+		// Replace built in passwords
+		$str = str_replace(MYSQL_PASS, '********', $str);
 		return $str;
 	}
 	
@@ -96,6 +111,11 @@ class ErrorHandler
 			mail(ADMIN_EMAILS, 'A Fatality has Occured on ' .SERVER_IDENT, print_r($e, true));
 		}
 	}
+}
+
+// This function does not exactly belong here but it is related to this section
+function HNvar_dump($str) {
+	return ErrorHandler::replaceFieldList($str);
 }
 
 set_error_handler( 'ErrorHandler::handler' );
