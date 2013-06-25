@@ -37,8 +37,11 @@ class HNTPLSelector extends HNTPLCore
 	private $headDisplayMethod = 'headDisplayDefault';
 	private $rowOnclickMethod = 'rowOnclickDefault';
 	private $rowDisplayMethod = 'rowDisplayDefault';
-	private $emptyText = 'Enter some text above to start searching.';
+	private $emptyText = 'No results to display.';
 	private $noResultText = 'Nothing was found with the search term.';
+	private $pageCtrlText = 'Page %curpage% of %totalpages%';
+	private $pageCtrlMode = 'multipage';
+	private $pageCtrlBtns = 'multipage';
 
 	/**
 	* @param $type One of the TYPE_* consts of this class.
@@ -63,7 +66,8 @@ class HNTPLSelector extends HNTPLCore
 	}
 
 	/**
-	* @param string $jsFuncName The JS function name which takes one parameter, the ID of the row clicked.
+	* @param string $jsFuncName The JS function name which takes two parameters,
+	* the event object and the ID of the row clicked.
 	* @uses $rowOnclickMethod
 	*/
 	public function set_row_onclick_method($jsFuncName) {
@@ -113,6 +117,42 @@ class HNTPLSelector extends HNTPLCore
 	public function set_noresult_text($text) {
 		$this->noResultText = $text;
 	}
+
+	/**
+	* Sets the text displayed in between the page navigation buttons.
+	*
+	* @param string $text Can contain the following string for replacement.
+	*   %firstrow% %lastrow% %totalrows% %curpage% %perpage% %totalpages%
+	* @uses $pageCtrlText
+	*/
+	public function set_page_control_text($text) {
+		$this->pageCtrlText = $text;
+	}
+
+	/**
+	* Changes the display policy of the page navigation contol.
+	*
+	* @param string $mode Can be always, hasrow or multipage.
+	* @uses $pageCtrlMode
+	*/
+	public function set_page_control_mode($mode) {
+		if (!in_array($mode, array('always','hasrow','multipage')))
+			throw new Exception('Invalid mode given');
+		$this->pageCtrlMode = $mode;
+	}
+
+	/**
+	* Changes the display policy of the buttons on the page navigation contol.
+	* The mode given the the entire control has priority.
+	*
+	* @param string $mode Can be always, hasrow or multipage.
+	* @uses $pageCtrlBtns
+	*/
+	public function set_page_control_button_mode($mode) {
+		if (!in_array($mode, array('always','hasrow','multipage')))
+			throw new Exception('Invalid mode given');
+		$this->pageCtrlBtns = $mode;
+	}
 	
 	/**
 	* Sets the query code used for getting the total number of pages in the set.
@@ -158,13 +198,8 @@ class HNTPLSelector extends HNTPLCore
 		}
  
 		echo '<form id="selector' .$this->queryCode. '" class="selector" method="post" ' .self::attributes($attrib). '>';
-			if ($this->type & self::TYPE_SEARCH) {
-				echo '<table class="selector_searchbox"><tr>';
-					echo '<td>Enter some search text:</td>';
-					echo '<td><input type="text" id="srch" autocomplete="off"/></td>';
-					echo '<td><input type="submit" value="Search"/></td>';
-				echo '</tr></table>';
-			}
+			if ($this->type & self::TYPE_SEARCH)
+				echo '<div id="filterDiv">Filter: <input type="text" id="srch" autocomplete="off"/></div>';
 			echo $pageChanger;
 			echo '<div id="content"><i>' .$this->emptyText. '</i></div>';
 			echo $pageChanger;
@@ -249,7 +284,7 @@ class HNTPLSelector extends HNTPLCore
 					(function(){
 						// To copy rowID for each row
 						var rowID = rowdata[i][0];
-						$tr.on("click", function(){<?php echo $this->rowOnclickMethod; ?>(rowID)});
+						$tr.on("click", function(e){<?php echo $this->rowOnclickMethod; ?>(e, rowID)});
 					})();
 					$tr.addClass("clickable");
 					<?php echo $this->rowDisplayMethod; ?>($tr, rowdata[i]);
@@ -266,7 +301,7 @@ class HNTPLSelector extends HNTPLCore
 		$selector.find("#content").replaceWith($base);
 	};
 	<?php if ($this->rowOnclickMethod == "rowOnclickDefault") { ?>
-	function rowOnclickDefault(rowID) {
+	function rowOnclickDefault(e, rowID) {
 		document.location = setting.uri.replace("--ID--", rowID);
 	};
 	<?php } ?>
@@ -353,25 +388,39 @@ class HNTPLSelector extends HNTPLCore
 		selector();
 	};
 	function pageCtrlUpdate() {
+		var text = "<?php echo str_replace('"', '\"', $this->pageCtrlText); ?>";
+		var showBar = "<?php echo $this->pageCtrlMode; ?>";
+		var showNav = "<?php echo $this->pageCtrlBtns; ?>";
 		var rowoffset = parseInt($selector.find("#rowoffset").val());
 		var perpage = parseInt($selector.find("#perpage").val());
 		var totalrows = parseInt($selector.find("#totalrows").val());
 		var curpage = Math.floor(rowoffset / perpage) + 1;
 		var totalpage = Math.floor((totalrows - 1) / perpage) + 1;
 		
-		$selector.find(".pageCtrlInfo").html("Page " + curpage + " of " + totalpage);
-
-		if ($selector.find("#srch").val() == "") {
-			if (totalpage <= 1)
-				$selector.find(".pageCtrl").hide();
-			else
-				$selector.find(".pageCtrl").show();
-		}
+		text = text.replace(/%(firstrow|lastrow|totalrows|curpage|perpage|totalpages)%/g, function(match) {
+			switch (match.slice(1,-1)) {
+			case 'firstrow': return Math.min(rowoffset + 1, totalrows);
+			case 'lastrow': return Math.min(rowoffset + perpage, totalrows);
+			case 'totalrows': return totalrows;
+			case 'curpage': return Math.min(curpage, totalpage);
+			case 'perpage': return perpage;
+			case 'totalpages': return totalpage;
+			}});
+		$selector.find(".pageCtrlInfo").html(text);
+		
+		if (showBar != 'always' && (totalpage == 0 || (showBar != 'hasrow' && totalpage == 1)))
+			$selector.find(".pageCtrl").hide();
+		else
+			$selector.find(".pageCtrl").show();
+		if (showNav != 'always' && (totalpage == 0 || (showNav != 'hasrow' && totalpage == 1)))
+			$selector.find(".pageCtrlFirst,.pageCtrlPrev,.pageCtrlNext,.pageCtrlLast").hide();
+		else
+			$selector.find(".pageCtrlFirst,.pageCtrlPrev,.pageCtrlNext,.pageCtrlLast").show();
 		if (curpage == 1)
 			$selector.find(".pageCtrlFirst,.pageCtrlPrev").attr("disabled", "disabled");
 		else
 			$selector.find(".pageCtrlFirst,.pageCtrlPrev").removeAttr("disabled");
-		if (curpage == totalpage)
+		if (curpage == totalpage || totalpage <= 1)
 			$selector.find(".pageCtrlNext,.pageCtrlLast").attr("disabled", "disabled");
 		else
 			$selector.find(".pageCtrlNext,.pageCtrlLast").removeAttr("disabled");
