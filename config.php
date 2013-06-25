@@ -38,7 +38,7 @@ $config = array(
 	#'MAIL_SMTP_HOST'	=> '',		// <host>[:<port>] Default: localhost:25
 	#'MAIL_SMTP_AUTH'	=> '',		// <user>[:<pass>] Default: NONE
 	'MAIL_SMTP_TIMEOUT'	=> 30,		// Default: NULL
-	'MAIL_SMTP_DEBUG'	=> true,	// Default: FALSE
+	'MAIL_SMTP_DEBUG'	=> false,	// Default: FALSE
 	'MAIL_SMTP_PERSIST'	=> true,	// Default: FALSE. Note: only a hint as there are hacks involved.
 
 	// Main Database
@@ -58,6 +58,7 @@ $config = array(
 	'CLASS_PATH'		=> BASE_PATH . '/classes',
 	'CRON_PATH'			=> BASE_PATH . '/cron',
 	'DBSTRUCT_PATH'		=> BASE_PATH . '/dbstruct',
+	#'INCLUDE_PATH'		=> array(BASE_PATH . '/PEAR'),
 	'PAGE_PATH'			=> BASE_PATH . '/pages',
 	'TEMPLATE_PATH'		=> BASE_PATH . '/hntpl',
 	'NO_LOGIN_PAGES'	=> 'root,help', // (comma seperated, lowercase) List of paths that should not require login
