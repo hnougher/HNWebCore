@@ -325,7 +325,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		if ($this->parentIdField != 'NONE')
 			$whereFields[] = '`' .$this->parentIdField. '`="' .HNMySQL::escape($this->parentId). '"';
 		if (is_array($whereParts)) {
-			$validSigns = array('=','!=','<','>','<=','>=');
+			$validSigns = array('=','!=','<','>','<=','>=','LIKE');
 			foreach ($whereParts AS $part) {
 				// Check that the sign is one of the valid ones
 				if (!in_array($part[1], $validSigns)) {
