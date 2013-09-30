@@ -7,7 +7,7 @@
 * It is optimised for result collecting speed while still being secure from attacks.
 * 
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -27,81 +27,74 @@ session_start();
 
 require_once 'config.php';
 require_once CLASS_PATH. '/ErrorHandler.class.php';
-require_once CLASS_PATH. '/HNMySQL.class.php';
+require_once CLASS_PATH. '/HNDB.class.php';
 date_default_timezone_set(SERVER_TIMEZONE);
-HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
 
 // Check all queries and params for problems and fix them up
-for ($i = 0; !empty($_REQUEST['q'.($i?$i:'')]); $i++) {
+$queryQueue = array();
+for ($i = 0; ; $i++) {
 	$j = ($i ? $i : '');
+	if (empty($_REQUEST['q'.$j]))
+		break;
+	
+	// Test if query code exists
 	if (empty($_SESSION['AJAX_QUERIES']) || empty($_SESSION['AJAX_QUERIES'][$_REQUEST['q'.$j]]))
 		die('Error: Requested stored query ' .$i. ' does not exist.');
-	$_REQUEST['q'.$j] = $_SESSION['AJAX_QUERIES'][$_REQUEST['q'.$j]];
-	if (!isset($_REQUEST['p'.$j]))
-		$_REQUEST['p'.$j] = array();
-	$_REQUEST['p'.$j] = (array) $_REQUEST['p'.$j];
-	$ACTPARAM = count($_REQUEST['p'.$j]);
-	$REQPARAM = strlen($_REQUEST['q'.$j][1]);
+	
+	// Prepare query for queue
+	$query = array();
+	$query['def'] = $_SESSION['AJAX_QUERIES'][$_REQUEST['q'.$j]];
+	$query['param'] = (array) $_REQUEST['p'.$j];
+	
+	// Do we have the right amount of params?
+	$ACTPARAM = count($query['param']);
+	$REQPARAM = count($query['def'][2]);
 	if ($REQPARAM != $ACTPARAM)
 		die('Error: Requested stored query ' .$i. ' needs ' .$REQPARAM. ' parameters, ' .$ACTPARAM. ' given.');
+	
+	$queryQueue[] = $query;
 }
-$totalQueries = $i;
+
+// Clean up
+unset($_REQUEST, $_POST, $_GET);
+unset($ACTPARAM, $REQPARAM, $query, $i, $j);
 
 // Start outer array of JSON
 echo '[';
 
-for ($i = 0; $i < $totalQueries; $i++) {
-	$j = ($i ? $i : '');
-	$QUERY = $_REQUEST['q'.$j];
-
-	// Prepare PARAM array
-	$PARAM = array();
-	if (isset($_REQUEST['p'.$j])) {
-		foreach ((array) $_REQUEST['p'.$j] as $k => $p)
-			$PARAM[] = &$_REQUEST['p'.$j][$k]; // Looks nasty but saves mem
-	}
-
-	// Prepare the statement for use
-	$stmt = HNMySQL::prepare($QUERY[0]);
-
-	// Bind the parameters
-	if ($stmt->param_count > 0) {
-		array_unshift($PARAM, $QUERY[1]);
-		call_user_func_array(array($stmt, 'bind_param'), $PARAM);
-	}
-
-	// Execute
-	if (!$stmt->execute())
+foreach ($queryQueue as $queryNumer => $QUERY) {
+	$DB =& HNDB::singleton(constant('HNDB_' .$QUERY['def'][0]));
+	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
+	$result =& $stmt->execute($QUERY['param']);
+	if (PEAR::isError($result))
 		die('Error: Statement failed to execute.');
-
-	if ($i > 0)
+	
+	if ($queryNumer > 0)
 		echo ',';
-	if (substr($QUERY[0], 0, 6) == 'SELECT') {
-		// SELECT: Collect result into JSON
+	if ($result instanceof MDB2_Result_Common) {
+		// Return result data
 		echo '[';
-		$doneFirst = false;
-		$aarray = array();
-		$barray = array();
-		for ($x = 0; $x < $stmt->field_count; $x++) {
-			$aarray[] = '';
-			$barray[] = &$aarray[$x];
-		}
-		call_user_func_array(array($stmt, 'bind_result'), $barray);
-		while ($stmt->fetch()) {
-			if ($doneFirst)
+		$rowNum = 0;
+		while (($row = $result->fetchRow()) && !PEAR::isError($row)) {
+			if ($rowNum)
 				echo ',';
-			else
-				$doneFirst = true;
-			echo json_encode($barray);
+			echo json_encode($row);
+			$rowNum++;
+			
+			// Flush to browser every 25 rows
+			if ($rowNum % 25 == 24)
+				flush();
 		}
 		echo ']';
+		flush();
+		$result->free();
 	} else {
-		// NOT SELECT: Return number of affected rows
-		echo $stmt->affected_rows;
+		// Return number of affected rows
+		echo $result;
 	}
-
-	// Clean up for the sake of it
-	$stmt->close();
+	
+	// Clean up
+	$stmt->free();
 }
 
 // End outer array of JSON

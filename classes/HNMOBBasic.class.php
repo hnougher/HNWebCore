@@ -7,7 +7,7 @@
 *
 * This page contains the basic class for all multi objects.
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -21,7 +21,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @var array
 	*/
 	private static $totalCreated = array();
-	
+
 	/**
 	* Keeps a count of destroyed MOB Objects.
 	* @var array
@@ -36,10 +36,16 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	protected $objectList = array();
 
 	/**
-	* The fieldlist object instance for this object.
-	* @var FieldList
+	* The OBJ class name this MOB is for.
+	* @var string
 	*/
-	private $fieldList;
+	private $OBJName;
+
+	/**
+	* The tableDef of the OBJ this MOB is for.
+	* @var _DefinitionTable
+	*/
+	private $tableDef;
 
 	/**
 	* This tells if this object has loaded the sub objects.
@@ -85,20 +91,26 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @param HNOBJBasic $parent The parent object if there is one. Used for saving some of the object loading repetition.
 	* @param boolean $loadNow If you set this to true then the objects will be loaded now.
 	*/
-	public function __construct($table, $field, $id, $parent = null, $loadNow = false) {
-		#$this->fieldList = FieldList::loadFieldList($table);
-		$this->fieldList = $table;
+	public function __construct($object, $field, $id, $parent = null, $loadNow = false) {
+		$this->OBJName = $object;
+		$ClassName = 'OBJ' . $object;
+		if (empty($object))
+			throw new Exception('No object given');
+		if (!class_exists($ClassName))
+			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
+		$this->tableDef =& $ClassName::getTableDef();
+		
 		$this->parentIdField = $field;
 		$this->parentId = $id;
 		$this->parentObj = $parent;
 		
 		// Object Count Statistic Update
 		if (STATS) {
-			if (!isset(self::$totalCreated[$table])) {
-				self::$totalCreated[$table] = 0;
-				self::$totalDestroyed[$table] = 0;
+			if (!isset(self::$totalCreated[$object])) {
+				self::$totalCreated[$object] = 0;
+				self::$totalDestroyed[$object] = 0;
 			}
-			self::$totalCreated[$table]++;
+			self::$totalCreated[$object]++;
 		}
 		
 		if ($loadNow)
@@ -109,12 +121,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	 * Used to decrement the count of currently loaded.
 	 */
 	public function __destruct() {
-		if (STATS) {
-			if ($this->fieldList instanceof FieldList)
-				self::$totalDestroyed[$this->fieldList->getTable()]++;
-			else
-				self::$totalDestroyed[$this->fieldList]++;
-		}
+		if (STATS)
+			self::$totalDestroyed[$this->OBJName]++;
 	}
 
 	/**
@@ -141,7 +149,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (!$this->checkLoaded(true))
 			return false;
 		
-		$newObj = HNOBJBasic::loadObject($this->fieldList->getTable(), 0, false, $this->fieldList);
+		$newObj = HNOBJBasic::loadObject($this->tableDef->table, 0);
 		
 		if ($this->parentIdField != 'NONE') {
 			$newObj[$this->parentIdField] = $this->parentObj;
@@ -169,231 +177,46 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Loads all the matching records
 	*
 	* @param array $orderParts Contains an array which is used to order the objects that are selected. The key is the field name and the value is the direction (true=ASC, false=DESC).
-	* @param array $whereParts Contains an array which is used to restrict the records
-	* 		that are selected. It contains arrays that consist of 3 items each. The first
-	* 		item is the field, the second is the sign and the third is the value.
+	* @param array $whereList A WhereList object.
 	* @param boolean $loadChildren If this is true then all children will get their data in one go, false is normal.
 	*/
-	public function load($orderParts = false, $whereParts = false, $loadChildren = false) {
+	public function load($orderParts = false, $whereList = false, $loadChildren = false) {
 		// Reset the local data store
 		$this->isLoaded = false;
 		$this->objectList = array();
 		
-		// Prepair the field list
-		if (!($this->fieldList instanceof FieldList)) {
-			// Convert fieldlist from the table value to a real object since it now needed
-			$this->fieldList = FieldList::loadFieldList($this->fieldList);
+		if ($this->parentIdField != 'NONE') {
+			if ($whereList === false)
+				$whereList = new WhereList();
+			if ($whereList->count())
+				$whereList->append(WhereList::WAND, new WherePart($this->parentIdField, '=', $this->parentId));
+			else
+				$whereList->append(new WherePart($this->parentIdField, '=', $this->parentId));
 		}
-
-		// Get list of readable fields
-		$readableFields = $this->fieldList->getReadable();
-
-		// Check for problems
-		if ($this->parentIdField != 'NONE' && !isset($readableFields[$this->parentIdField]))
-			throw new Exception('Parent field is not readable');
-
-		// Clean up the where parts
-		if (is_array($whereParts)) {
-			$cleanWhereParts = array();
-			foreach ($whereParts AS $part) {
-				// Check that the where part looks valid
-				if (!is_array($part) || count($part) != 3) {
-					trigger_error('Bad where part (Needs exactly 3 items)', E_USER_WARNING);
-					continue;
-				}
-
-				// Check that the field name is valid
-				if (!isset($readableFields[$part[0]])) {
-					trigger_error('Bad field name "' .$part[0]. '" in where part', E_USER_WARNING);
-					continue;
-				}
-
-				$cleanWhereParts[] = $part;
-			}
-			$whereParts = $cleanWhereParts;
-			unset($cleanWhereParts);
-		}
-
-		$LDAPBase = $this->fieldList->getLDAPBase();
-		if (!empty($LDAPBase))
-			$this->load_ldap($readableFields, $orderParts, $whereParts, $loadChildren);
-		else
-			$this->load_mysqli($readableFields, $orderParts, $whereParts, $loadChildren);
 		
+		$DB =& HNDB::singleton(constant($this->tableDef->connection));
+		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadChildren, $whereList, $orderParts);
+		if (PEAR::isError($stmt))
+			throw new Exception('Statement is invalid!');
+		$result = $stmt->execute();
+		if (PEAR::isError($result))
+			throw new Exception('Result is invalid!');
+		
+		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !PEAR::isError($row)) {
+			$idSet = array();
+			foreach ($this->tableDef->keys as $fieldName => $fieldDef) {
+				$idSet[] = $row[$fieldName];
+			}
+			if ($loadChildren)
+				$this->objectList[] = new _OBJPrototype($this->OBJName, $idSet, $row);
+			else
+				$this->objectList[] = new _OBJPrototype($this->OBJName, $idSet);
+		}
+		
+		$result->free();
+		$stmt->free();
 		$this->isLoaded = true;
 		return true;
-	}
-
-	/**
-	* Special loader for ldap tables.
-	*/
-	private function load_ldap($readableFields, $orderParts, $whereParts, $loadChildren) {
-		// Gather fields to fetch
-		$fields = (array) $this->fieldList->getIdField();
-		if ($loadChildren) {
-			foreach ($readableFields as $name => $fieldInfo) {
-				if ($fieldInfo['type'] != 'rev_object') {
-					/*$sqlFields[] = '`' .$name. '` AS "0' .$name. '"';*/
-					$fields[] = $name;
-				}
-			}
-			unset($name, $fieldInfo);
-			$fields = array_unique($fields);
-		}
-		
-		// Create LDAP filter
-		$filter = array();
-		if ($this->parentIdField != 'NONE')
-			$filter[] = '(' .$this->parentIdField. '=' .HNLDAP::escape($this->parentId). ')';
-		if (is_array($whereParts)) {
-			$validSigns = array('=','<','>','<=','>=');
-			foreach ($whereParts AS $part) {
-				// Check that the sign is one of the valid ones
-				if (!in_array($part[1], $validSigns)) {
-					trigger_error('Bad sign "' .$part[1]. '" in where part', E_USER_WARNING);
-					continue;
-				}
-
-				$filter[] = '(' .$part[0].$part[1].HNLDAP::escape($part[2]). ')';
-			}
-		}
-		$filter = (count($filter) > 1 ? '(&' .implode('', $filter). ')' : implode('', $filter));
-
-		// Do the Query
-		$result = HNLDAP::search($this->fieldList->getLDAPBase(), $filter, $fields);
-		if (!$result) {
-			// The query has failed for some reason
-			return false;
-		}
-
-		// Check over the order list and process it
-		if (is_array($orderParts)) {
-			foreach ($readableFields as $name => $f) {
-				if (isset($orderParts[$name])) {
-					$result = HNLDAP::sort($result, $name);
-					if (!$orderParts[$name])
-						$result = array_reverse($result);
-				}
-			}
-			unset($name, $f);
-		}
-
-		// Load all the objects
-		unset($result['count']); // Dont want LDAP count
-		$table = $this->fieldList->getTable();
-		if ($loadChildren) {
-			$idFields = $this->fieldList->getIdField();
-			foreach ($result as $row) {
-				unset($row['count']);
-				$idSet = array();
-				foreach ((array) $idFields AS $idField)
-					$idSet[] = (isset($row[$idField]) ? $row[$idField] : 0);
-				
-				$this->objectList[] = new _OBJPrototype($table, $idSet, $row);
-			}
-		}
-		else {
-			foreach ($result as $row) {
-				unset($row['count']); // Done want LDAP count
-				$this->objectList[] = new _OBJPrototype($table, array_values($row));
-			}
-		}
-	}
-
-	/**
-	* Special loader for mysql tables.
-	*/
-	private function load_mysqli($readableFields, $orderParts, $whereParts, $loadChildren) {
-		// Make the SQL statement
-		$sql = 'SELECT ';
-		$sqlFields = (array) $this->fieldList->getIdField();
-		if ($loadChildren) {
-			foreach ($readableFields as $name => $fieldInfo) {
-				if ($fieldInfo['type'] != 'rev_object')
-					$sqlFields[] = $name;
-			}
-			unset($name, $fieldInfo);
-			$sqlFields = array_unique($sqlFields);
-		}
-		$sql .= '`' .implode('`,`', $sqlFields). '`';
-		unset($sqlFields);
-		
-		$sql .= ' FROM `' .$this->fieldList->getTable(). '` ';
-
-		// Check over the where list and process it
-		$whereFields = array();
-		if ($this->parentIdField != 'NONE')
-			$whereFields[] = '`' .$this->parentIdField. '`="' .HNMySQL::escape($this->parentId). '"';
-		if (is_array($whereParts)) {
-			$validSigns = array('=','!=','<','>','<=','>=','LIKE');
-			foreach ($whereParts AS $part) {
-				// Check that the sign is one of the valid ones
-				if (!in_array($part[1], $validSigns)) {
-					trigger_error('Bad sign "' .$part[1]. '" in where part', E_USER_WARNING);
-					continue;
-				}
-
-				// Escape the value
-				$value = HNMySQL::escape($part[2]);
-
-				// Add to the where clause
-				$whereFields[] = '`' .$part[0]. '`' .$part[1]. '"' .$value. '"';
-			}
-		}
-		if (count($whereFields))
-			$sql .= 'WHERE ' .implode(' AND ', $whereFields);
-		unset($whereFields, $value, $part, $validSigns);
-
-		// Check over the order list and process it
-		if (is_array($orderParts)) {
-			$orderShown = false;
-			foreach ($readableFields as $name => $f) {
-				if (isset($orderParts[$name])) {
-					$sql .= ($orderShown ? ', ' : ' ORDER BY '). '`' .$name. '`';
-					if (!$orderParts[$name])
-						$sql .= ' DESC';
-					$orderShown = true;
-				}
-			}
-			unset($orderShown, $name, $f);
-		}
-		elseif (isset($orderParts) && $orderParts == 'RAND()') {
-			$sql .= ' ORDER BY RAND()';
-		}
-
-		// Do the Query
-		#echo "$sql\n";
-		$result = HNMySQL::query($sql, ($loadChildren ? MYSQLI_USE_RESULT : MYSQLI_STORE_RESULT));
-		if (!$result) {
-			// The query has failed for some reason
-			// NOTE: HNMySQL logs and displays the error before return.
-			return false;
-		}
-
-		// Load all the objects
-		$table = $this->fieldList->getTable();
-		if ($loadChildren) {
-			$idFields = $this->fieldList->getIdField();
-			while ($row = $result->fetch_assoc()) {
-				$idSet = array();
-				foreach ((array) $idFields AS $idField)
-					$idSet[] = (isset($row[$idField]) ? $row[$idField] : 0);
-				
-				/*$obj = HNOBJBasic::loadObject($this->fieldList->getTable(), $idSet, false, $this->fieldList);
-				if ($this->parentIdField != 'NONE')
-					$obj->set_reverse_link($this->parentIdField, $this->parentObj);
-				$this->objectList[] = $obj;*/
-				$this->objectList[] = new _OBJPrototype($table, $idSet, $row);
-			}
-		}
-		else {
-			while ($row = $result->fetch_row()) {
-				$this->objectList[] = new _OBJPrototype($table, $row);
-			}
-		}
-
-		// Close the result set
-		$result->free();
 	}
 
 	/**
@@ -415,6 +238,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	 * Clean on this and all children.
 	 */
 	public function clean() {
+		if (!$this->isLoaded)
+			return; // No need to clean if not loaded
 		$this->isLoaded = false;
 		foreach ($this->objectList AS $obj) {
 			if ($obj instanceof HNOBJBasic)
@@ -463,7 +288,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 			return '[MOB NOT LOADED]';
 		
 		try {
-			$return = strtoupper($this->fieldList->getTable()). " {\n";
+			$return = "MOB" .$this->tableDef->table. " {\n";
 			foreach ($this AS $num => $value)
 				$return .= "\t[" .$num. '] => ID ' .$value->getId(). "\n";
 			$return .= "\t}";
@@ -503,7 +328,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Check if progressive creation of HNOBJ for offset is needed
 		$object = $this->objectList[$offset];
 		if ($object instanceof _OBJPrototype) {
-			$object = $object->getUpgrade(false, $this->fieldList);
+			$object = $object->getUpgrade(false);
 			if (!empty($this->parentObj) && $this->parentIdField != 'NONE')
 				$object->set_reverse_link($this->parentIdField, $this->parentObj);
 			$this->objectList[$offset] = $object;

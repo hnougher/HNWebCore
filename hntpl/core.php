@@ -7,7 +7,7 @@
 *
 * This page contains the basic core class for all the HNTPL classes.
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNwebCore
 */
 

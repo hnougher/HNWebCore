@@ -6,7 +6,7 @@
 * HN Template Page
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 

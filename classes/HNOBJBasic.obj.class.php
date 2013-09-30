@@ -7,7 +7,7 @@
 *
 * This page contains the basic class for all objects.
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -40,12 +40,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	private static $cachedObjects = array();
 
 	/**
-	* Will contain an instance of the FieldList class.
-	* @var FieldList
-	*/
-	protected $fieldList;
-
-	/**
 	* Will contain the id for the id field of this object.
 	* @var integer
 	*/
@@ -53,12 +47,20 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* Stores the current status of this OBJ.
+	* This property should always be checked by using has_record or checkLoaded
 	* @var enum
 	*/
 	const NOT_LOADED = 0;
 	const NO_RECORD = 1;
 	const LOADED = 2;
 	protected $status = self::NOT_LOADED;
+
+	/**
+	* This property is to hold a reference to the TableDef that this instance was loaded with.
+	* It should never be changed or used directly except in load() and checkLoaded().
+	* This is used to determine if the OBJ needs reloading due to tableDef changing.
+	*/
+	private $loadedWithTableDef = null;
 
 	/**
 	* This contains the same data that the Database does.
@@ -84,36 +86,55 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Loads an object using the config specified object class so that the
 	* programmer doesnt have to do such complex things often.
 	*
-	* @param $table
+	* @param $object The object name to be loaded. eg: user, login_log.
+	* @param $id An array of values or single value which will be used as keys to load the object.
+	* @param $loadNow Boolean which is TRUE will cause this new OBJ to be immeadiately loaded from DB.
 	* @return HNOBJBasic A object class that extends the HNOBJBasic base class.
 	*/
-	public static function loadObject($table, $id, $loadNow = false, $fieldList = false) {
-		$fieldList = ($fieldList === false ? FieldList::loadFieldList($table) : $fieldList);
-		$className = $fieldList->getClass();
-		if (!class_exists($className)) {
-			$tmpPrefix = substr(__FILE__, 0, strrpos(__FILE__, '/'));
-			require_once $tmpPrefix. '/' .$className. '.obj.class.php';
-		}
-
+	public static function loadObject($object, $id, $loadNow = false) {
+		$className = 'OBJ' . $object;
+		if (empty($object))
+			throw new Exception('No object given');
+		if (!class_exists($className))
+			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
+		
 		$idFix = implode('!', (array) $id);
-		if (isset(self::$cachedObjects[$table]) && isset(self::$cachedObjects[$table][$idFix])) {
-			#echo "USE(" .$table. "," .$idFix. ") \n";
+		if (isset(self::$cachedObjects[$object]) && isset(self::$cachedObjects[$object][$idFix])) {
+			#echo "USE(" .$object. "," .$idFix. ") \n";
 			// There is already an object loaded for this ID
-			return self::$cachedObjects[$table][$idFix];
+			return self::$cachedObjects[$object][$idFix];
 		}
 		else {
-			#echo "NEW(" .$table. "," .$idFix. ") \n";
+			#echo "NEW(" .$object. "," .$idFix. ") \n";
 			// We need a new object
-			$obj = new $className($table, (array) $id, $loadNow, $fieldList);
-
+			$obj = new $className($id, $loadNow);
+			
 			if (!empty($idFix)) {
-				if( !isset( self::$cachedObjects[$table]))
-					self::$cachedObjects[$table] = array();
-				self::$cachedObjects[$table][$idFix] = $obj;
+				if( !isset( self::$cachedObjects[$object]))
+					self::$cachedObjects[$object] = array();
+				self::$cachedObjects[$object][$idFix] = $obj;
 			}
-
+			
 			return $obj;
 		}
+	}
+
+	public static function prepareObjectDefs() {
+		$userTypes = (empty($GLOBALS['uo']) ? array('all' => 0) : $GLOBALS['uo']->userTypes());
+		if (defined('HNWC_CRON')) $userTypes['cron'] = 0;
+		if (empty(static::$tableDefFor) || static::$tableDefFor != array_keys($userTypes)) {
+			static::$tableDefFor = array_keys($userTypes);
+			
+			static::$tableDef = new _DefinitionTable(static::$tableDefOrig);
+			#echo "REDO " .static::$tableDef->table. " for " .implode(',', array_keys($userTypes)). "\n";
+			
+			static::$selectStatement = false;
+		}
+	}
+
+	public static function &getTableDef() {
+		static::prepareObjectDefs();
+		return static::$tableDef;
 	}
 
 	/**
@@ -129,25 +150,23 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
-	* @param string $table The table name used for this object.
 	* @param integer|array $id The id of the record we are getting from the table.
 	* @param boolean $loadNow If set to yes then the DB data is loaded now.
 	*/
-	public function __construct($table, $id, $loadNow, $fieldList) {
-		$this->fieldList = $fieldList;
-		$this->myId = $id;
+	public function __construct($id, $loadNow) {
+		$this->myId = (array) $id;
+		self::prepareObjectDefs();
+		if ($loadNow)
+			$this->load();
 
 		// Object Count Statistic Update
 		if (STATS) {
-			if (!isset(self::$totalCreated[$table])) {
-				self::$totalCreated[$table] = 0;
-				self::$totalDestroyed[$table] = 0;
+			if (!isset(self::$totalCreated[$this::$tableDef->table])) {
+				self::$totalCreated[$this::$tableDef->table] = 0;
+				self::$totalDestroyed[$this::$tableDef->table] = 0;
 			}
-			self::$totalCreated[$table]++;
+			self::$totalCreated[$this::$tableDef->table]++;
 		}
-
-		if ($loadNow && !empty($id))
-			$this->load();
 	}
 
 	/**
@@ -155,7 +174,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	 */
 	public function __destruct() {
 		if (STATS)
-			self::$totalDestroyed[$this->fieldList->getTable()]++;
+			self::$totalDestroyed[$this::$tableDef->table]++;
 	}
 
 	/**
@@ -181,9 +200,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Check if this object has a record that is physically stored in the database.
 	* @return Boolean True if the record is physically located in the database, False otherwise.
 	*/
-	public function has_record() {
-		if ($this->getId() == 0 || !$this->checkLoaded(true))
-			return false;
+	public function hasRecord() {
+		$this->checkLoaded(true);
 		return ($this->status == self::LOADED);
 	}
 	
@@ -192,13 +210,16 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* It can attempt to load the object now if it has not been loaded yet.
 	*
 	* @param boolean $loadNow If this is true then the data will be loaded now if it has not been already.
-	* @return boolean True if it is now loaded, false otherwise.
+	* @return boolean TRUE if it is now loaded, FALSE otherwise.
+	*    NOTE: It will always return true if loading now because load always succeeds.
 	*/
 	public function checkLoaded($loadNow = false) {
-		if ($this->status == self::NO_RECORD || $this->status == self::LOADED)
+		if ($this->status != self::NOT_LOADED && $this->loadedWithTableDef === $this::$tableDef)
 			return true;
-		if ($loadNow)
-			return $this->load();
+		if ($loadNow) {
+			$this->load();
+			return true;
+		}
 		return false;
 	}
 
@@ -208,16 +229,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return FieldList::getTable()
 	*/
 	public function getTable() {
-		return $this->fieldList->getTable();
-	}
-
-	/**
-	* Gets the array of all the fields in the objects table.
-	*
-	* @return FieldList::getFields()
-	*/
-	public function getFields() {
-		return $this->fieldList->getFields();
+		return $this::$tableDef->table;
 	}
 
 	/**
@@ -250,6 +262,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return array The field parameters.
 	*/
 	public function getValParam($field) {
+	throw new Exception("NI");
 		$fields = $this->fieldList->getReadable();
 		return (isset($fields[$field]) ? $fields[$field] : false);
 	}
@@ -282,10 +295,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return string The string with all replacements done.
 	*/
 	public function replaceFields($str, $pre = '{', $post = '}') {
-		$allFields = $this->fieldList->getReadable();
-		foreach ($allFields as $name => &$field)
-			$field = sprintf('|%s(%s)%s|', $pre, $name, $post);
-		return preg_replace_callback($allFields, array(&$this, 'replaceFieldsReplacer'), $str);
+		$patterns = array();
+		foreach ($this::$tableDef->getReadableFields() as $fieldName => $fieldDef)
+			$patterns[] = sprintf('|%s(%s)%s|', $pre, $fieldName, $post);
+		return preg_replace_callback($patterns, array(&$this, 'replaceFieldsReplacer'), $str);
 	}
 
 	/**
@@ -295,10 +308,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	private function replaceFieldsReplacer($matches) {
 		$field = $matches[1];
 		$val = $this[$matches[1]];
-		$readableFields = $this->fieldList->getReadable();
 		if ($val instanceof HNOBJBasic) {
-			if (!empty($readableFields[$field]['display']))
-				$val = $val->replaceFields($readableFields[$field]['display']);
+			$readableFields = $this::$tableDef->getReadableFields();
+			if (!empty($readableFields[$field]->display))
+				$val = $val->replaceFields($readableFields[$field]->display);
 			else
 				$val = sprintf('[%s #%d]', $field, $val->getId());
 		}
@@ -310,110 +323,76 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	
 	/**
 	* This function loads the data from the database.
-	*
-	* @return Boolean TRUE on success, otherwise FALSE.
+	* Always succeeds.
 	*/
 	public function load() {
 		// Reset the local data store
 		$this->status = self::NOT_LOADED;
 		$oldData = $this->myData;
 		$this->myData = array();
-
-		// Make the SQL statement
-		$sqlFields = array();
-		foreach ($this->fieldList->getReadable() as $name => $fieldInfo) {
-			if ($fieldInfo['type'] != 'rev_object') {
-				//$sqlFields[] = '`' .$name. '` AS "' .$name. '"';
-				$sqlFields[] = '`' .$name. '`';
-			}
+		$this->loadedWithTableDef = $this::$tableDef; // Copy of object not variable slot
+		
+		// If not perpared already make the static select statement
+		if (empty(static::$selectStatement)) {
+			$DB =& HNDB::singleton(constant(static::$tableDef->connection));
+			static::$selectStatement = $DB->prepareOBJQuery('SELECT', static::$tableDef);
+			unset($DB);
 		}
 		
-		if (!count($sqlFields)) {
-			// This is hopefully safe.
-			// It occurs when the user has no permission to view the record
-			return false;
-		}
-		
-		$idFields = (array) $this->fieldList->getIdField();
-		if (count($idFields) == count($this->myId)) {
-			$sql = 'SELECT ' .implode(',', $sqlFields). ' ';
-			$sql .= 'FROM `' .$this->fieldList->getTable(). '` ';
-			$sql .= 'WHERE ';
-			foreach ($idFields AS $key => $idField)
-				$sql .= '`' .$idField. '`="' .HNMySQL::escape($this->myId[$key]). '" AND ';
-			$sql = substr($sql, 0, -4);
-			$sql .= 'LIMIT 1';
-
-			// Do the Query
-			$result = HNMySQL::query($sql);
-			if (!$result) {
-				// The query has failed for some reason
-				// NOTE: HNMySQL logs and displays the error before return.
-				return false;
-			}
-
-			// Check if the record does exist
-			if ($result->num_rows == 0)
-				$this->status = self::NO_RECORD;
-			else
-				// Get the Data
-				$data = $result->fetch_assoc();
-		}
-		else {
+		// If there is just one key and that key is zero then there is assumed no record to load
+		if (count($this->myId) == 1 && $this->myId[0] === 0) {
 			$this->status = self::NO_RECORD;
+		} else {
+			// Execute the statement
+			$ids = array();
+			foreach (array_keys($this::$tableDef->keys) as $key => $val)
+				$ids[$val] = $this->myId[$key];
+			$result = static::$selectStatement->execute($ids);
+			if (PEAR::isError($result))
+				throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+			if ($result->numRows() == 1) {
+				$data =& $result->fetchRow(MDB2_FETCHMODE_ASSOC);
+				if (!is_array($data))
+					throw new Exception('Result was not an array');
+			} else {
+				$this->status = self::NO_RECORD;
+			}
+			$result->free();
 		}
-
+		
 		// Process the Data into the correct data types and locally store it
 		$this->storeArrayToLocal(($this->status == self::NO_RECORD ? array() : $data), $oldData);
-
+		
 		// We have loaded successfully if we have a record
 		if ($this->status == self::NOT_LOADED)
 			$this->status = self::LOADED;
-		return true;
 	}
 	
 	/**
 	* Processes the Data into the correct data types and locally store it.
 	*/
 	protected function storeArrayToLocal($dataArray, $oldData = array()) {
-		foreach ($this->fieldList->getReadable() as $name => $fieldInfo) {
+		foreach ($this::$tableDef->fields as $name => $fieldDef) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
 				$dataArray[$name] = '';
 			
-			// Save the value in correct type for later use
-			if ($fieldInfo['type'] == 'str')
-				$this->myData[$name] = (string) $dataArray[$name];
-			elseif ($fieldInfo['type'] == 'int') {
-				if ($dataArray[$name] <= PHP_INT_MAX)
-					$this->myData[$name] = (integer) $dataArray[$name];
-				else
-					$this->myData[$name] = (string) $dataArray[$name];
-			}
-			elseif ($fieldInfo['type'] == 'float')
-				$this->myData[$name] = (float) $dataArray[$name];
-			elseif ($fieldInfo['type'] == 'bool')
-				$this->myData[$name] = (boolean) $dataArray[$name];
-			elseif ($fieldInfo['type'] == 'byte')
-				$this->myData[$name] = ord($dataArray[$name]);
-			elseif ($fieldInfo['type'] == 'array')
-				$this->myData[$name] = (array) $dataArray[$name];
-			elseif ($fieldInfo['type'] == 'object') {
-				if (isset($oldData[$name]) && $oldData[$name]->getId() == $dataArray[$name])
-					$this->myData[$name] = $oldData[$name];
-				else
-					$this->myData[$name] = new _OBJPrototype($fieldInfo['table'], $dataArray[$name]);
-			}
-			elseif ($fieldInfo['type'] == 'rev_object') {
-				if (isset($oldData[$name])) {
-					$this->myData[$name] = $oldData[$name];
-				}
-				else {
-					$newField = (!empty($fieldInfo['field']) ? $fieldInfo['field'] : $this->fieldList->getIdField());
-					#$this->myData[$name] = new HNMOBBasic($fieldInfo['table'], $newField, $this->getId(), $this);
-					$this->myData[$name] = new _MOBPrototype($fieldInfo['table'], $newField);
-				}
-			}
+			// Special handling of objects
+			if (!empty($fieldDef->object))
+				$this->myData[$name] = new _OBJPrototype($fieldDef->object, $dataArray[$name]);
+			else
+				$this->myData[$name] = $dataArray[$name];
+		}
+		
+		foreach ($this::$tableDef->subtables as $name => $fieldDef) {
+			// In case the value to set is not defined, we give it an empty string
+			if (!isset($dataArray[$name]))
+				$dataArray[$name] = '';
+			
+			if (isset($oldData[$name]))
+				$this->myData[$name] = $oldData[$name];
+			else
+				$this->myData[$name] = new _MOBPrototype($fieldDef);
 		}
 	}
 
@@ -425,82 +404,75 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return boolean TRUE on success, otherwise FALSE.
 	*/
 	public function save() {
+		$replacements = array();
+		
+		#checkLoaded(true); // will be done in hasRecord() later or offsetSet() before.
+		
 		// Check that we have field to save in $this->myChangedData
-		if (count($this->myChangedData) == 0)
+		if (empty($this->myChangedData))
 			return false;
-
-		// Check if we have to insert the new row and make the SQL
-		if ($this->myId[0] == 0 || $this->status == self::NO_RECORD) {
-			// Get the field names that we are allowed to insert to
-			$fields = $this->fieldList->getInsertable();
-
-			if(!count($fields))
-				// This user cannot insert into this table
-				return false;
-
-			// Time to make the SQL for Inserting
-			$sql = 'INSERT INTO `' .$this->fieldList->getTable(). '` SET ';
-			$endSql = '';
+		
+		if (!$this->hasRecord()) {
+			$type = 'INSERT';
+			$fieldDefs = $this::$tableDef->getInsertableFields();
+			if (empty($fieldDefs))
+				throw new Exception('Nothing can be inserted in this table');
+		} else {
+			$type = 'UPDATE';
+			$fieldDefs = $this::$tableDef->getWriteableFields();
+			if (empty($fieldDefs))
+				throw new Exception('Nothing can be written in this table');
+			
+			// Prepare fields that are keys
+			foreach (array_keys($this::$tableDef->keys) as $key => $val)
+				$replacements[$val] = $this->myId[$key];
 		}
-		else {
-			// Get the field names that we are allowed to write
-			$fields = $this->fieldList->getWriteable();
-
-			if(!count($fields))
-				// This user cannot update this table
-				return false;
-
-			// Make the SQL for Updating
-			$sql = 'UPDATE `' .$this->fieldList->getTable(). '` SET ';
-			$endSql = 'WHERE ';
-
-			foreach ((array) $this->fieldList->getIdField() AS $key => $idField)
-				$endSql .= '`' .$idField. '`="' .HNMySQL::escape($this->myId[$key]). '" AND ';
-			$endSql = substr( $endSql, 0, -4 );
-		}
-
-		foreach ($fields as $name => $fieldInfo) {
-			if ($fieldInfo['type'] == 'rev_object')
+		
+		// Prepare fields that are getting changed
+		$fields = array();
+		foreach ($fieldDefs as $fieldName => $fieldDef) {
+			echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
+			if (!empty($fieldDef->object)) {
+				if ($this->myData[$fieldName]->getId() == $this->myChangedData[$fieldName]->getId())
+					continue;
+				$replacements[$fieldName] = $this->myChangedData[$fieldName]->getId();
+				$fields[] = $fieldName;
+			} elseif (!isset($this->myChangedData[$fieldName])) {
 				continue;
-			elseif ($fieldInfo['type'] == 'object')
-				$tmpData = '"' .HNMySQL::escape($this[$name]->getId()). '"';
-			elseif (!isset($this->myChangedData[$name]))
-				continue;
-			elseif ($fieldInfo['type'] == 'bool')
-				$tmpData = (empty($this->myChangedData[$name]) ? 0 : 1);
-			elseif ($fieldInfo['type'] == 'byte')
-				$tmpData = sprintf('0x%X', $this->myChangedData[$name]);
-			else
-				$tmpData = '"' .HNMySQL::escape((string) $this->myChangedData[$name]). '"';
-			$sql .= '`' .$name. '`=' .$tmpData. ',';
-		}
-		$sql[strlen($sql) - 1] = ' ';
-		$sql .= $endSql;
-
-		// Do the Database Query
-		$result = HNMySQL::query( $sql );
-		if (!$result) {
-			// The query has failed for some reason
-			// NOTE: HNMySQL logs and displays the error before return.
-			return false;
-		}
-
-		// YAY! we are done! Now to reload and clean up
-		$idFields = $this->fieldList->getIdField();
-		if ($sql[0] == 'I' && $this->fieldList->hasAutoId()) {
-			$this->myId[0] = HNMySQL::insert_id();
-		}
-		elseif (is_array($idFields)) {
-			foreach ($idFields AS $key => $val) {
-				if (isset($this->myChangedData[$val]))
-					$this->myId[$key] = $this->myChangedData[$val];
-				else
-					$this->myId[$key] = $this->myData[$val];
-				if (is_object($this->myId[$key]) && $this->myId[$key] instanceof HNOBJBasic)
-					$this->myId[$key] = $this->myId[$key]->getId();
+			} else {
+				$replacements[$fieldName] = $this->myChangedData[$fieldName];
+				$fields[] = $fieldName;
 			}
 		}
-
+		
+		// Prepare DB connection and statement
+		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
+		$stmt =& $DB->prepareOBJQuery($type, $this::$tableDef, $fields);
+		
+		$result = $stmt->execute($replacements);
+		if (PEAR::isError($result))
+			throw new Exception('DB operation failed');
+		if ($result == 0)
+			throw new Exception('No rows affected by ' .$type);
+		
+		// Update my ID values
+		if ($type == 'INSERT' && $this::$tableDef->hasAutoId) {
+			$this->myId[0] = $DB->lastInsertID();
+		} else {
+			$keyId = 0;
+			foreach ($this::$tableDef->keys AS $fieldName => $fieldDef) {
+				if (isset($this->myChangedData[$fieldName]))
+					$this->myId[$keyId] = $this->myChangedData[$fieldName];
+				else
+					$this->myId[$keyId] = $this->myData[$fieldName];
+				if (is_object($this->myId[$keyId]) && $this->myId[$keyId] instanceof HNOBJBasic)
+					$this->myId[$keyId] = $this->myId[$keyId]->getId();
+				$keyId++;
+			}
+		}
+		
+		// YAY! we are done! Now to reload and clean up
+		$stmt->free();
 		$this->load();
 		$this->myChangedValues = array();
 		return true;
@@ -513,26 +485,26 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	*/
 	public function remove() {
 		// Check that this user can delete this
-		if (!$this->fieldList->isDeleteable() || !$this->has_record())
+		if (!$this::$tableDef->deleteable() || !$this->hasRecord())
 			return false;
-
-		// Make the SQL
-		$sql = 'DELETE FROM `' .$this->fieldList->getTable(). '` ';
-		$sql .= 'WHERE ';
-		foreach ((array) $this->fieldList->getIdField() AS $key => $idField)
-			$sql .= '`' .$idField. '`="' .HNMySQL::escape($this->myId[$key]). '" AND ';
-		$sql = substr($sql, 0, -4);
-		$sql .= ' LIMIT 1';
-
-		// Do the Database Query
-		$result = HNMySQL::query($sql);
-		if(!$result) {
-			// The query has failed for some reason
-			// NOTE: HNMySQL logs and displays the error before return.
-			return false;
-		}
-
+		
+		// Prepare fields that are keys
+		$replacements = array();
+		foreach (array_keys($this::$tableDef->keys) as $key => $val)
+			$replacements[$val] = $this->myId[$key];
+		
+		// Prepare DB connection and statement
+		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
+		$stmt =& $DB->prepareOBJQuery('DELETE', $this::$tableDef);
+		
+		$result = $stmt->execute($replacements);
+		if (PEAR::isError($result))
+			throw new Exception('DB operation failed');
+		if ($result == 0)
+			throw new Exception('No rows affected by DELETE');
+		
 		// YAY! We have deleted the record!
+		$stmt->free();
 		$this->status = self::NOT_LOADED;
 		return true;
 	}
@@ -542,6 +514,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	 * OR for now just clean up everything.
 	 */
 	public function clean() {
+		if ($this->status == self::NOT_LOADED && $this->myParentObject == null)
+			return; // No need to clean if we are not loaded
+		$this->status = self::NOT_LOADED;
+		
 		foreach ($this->myData AS $data) {
 			if (!is_object($data))
 				continue;
@@ -554,16 +530,14 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$data->clean();
 		}
 
-		$this->status = self::NOT_LOADED;
 		$this->myData = array();
 		$this->myChangedData = array();
 		$this->myParentObject = null;
 
 		$idFix = implode('!', (array) $this->getId());
-		$table = $this->fieldList->getTable();
-		if (isset(self::$cachedObjects[$table][$idFix])) {
-			#echo "CLEAN(" .$table. "," .$idFix. ") \n";
-			unset(self::$cachedObjects[$table][$idFix]);
+		if (isset(self::$cachedObjects[$this::$tableDef->table][$idFix])) {
+			#echo "CLEAN(" .$this::$tableDef->table. "," .$idFix. ") \n";
+			unset(self::$cachedObjects[$this::$tableDef->table][$idFix]);
 		}
 	}
 
@@ -578,6 +552,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	*/
 	public function __toString() {
 		$return = '';
+		try {
 		foreach ($this AS $field => $value) {
 			$return .= $field. ' => ';
 			if (is_object($value)) {
@@ -592,6 +567,9 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			}
 			$return .= "\n";
 		}
+		} catch (Exception $e) {
+			$return = 'Exception: ' .$e->getMessage() . ' ' . $e->getTraceAsString();
+		}
 		return $return;
 	}
 
@@ -599,15 +577,14 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Required definition of interface IteratorAggregate
 	*/
 	public function getIterator() {
-		return new HNOBJBasicIterator($this, array_values($this->fieldList->getReadable()));
+		return new HNOBJBasicIterator($this, array_keys($this::$tableDef->getReadableFieldsAndSubtables()));
 	}
 
 	/**
 	* Required definition of interface ArrayAccess
 	*/
 	public function offsetExists($offset) {
-		$fields = $this->fieldList->getReadable();
-		return isset($fields[$offset]);
+		return isset($this::$tableDef->getReadableFieldsAndSubtables()[$offset]);
 	}
 
 	/**
@@ -623,14 +600,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function offsetGet($field) {
 		if (isset($this->myChangedData[$field]))
 			return $this->myChangedData[$field];
-		if (!$this->checkLoaded(true)) {
-			trigger_error('OBJ failed to load for field ' .$field. ' in ' .$this->getTable(), E_USER_WARNING);
-			return false;
-		}
-		if (!isset($this->myData[$field])) {
-			trigger_error('No such field "' .$field. '" in "' .$this->getTable(). '" or unauthorised', E_USER_WARNING);
-			return false;
-		}
+		$this->checkLoaded(true);
+		if (!array_key_exists($field, $this::$tableDef->getReadableFieldsAndSubtables()))
+			throw new Exception('No such field "' .$field. '" in "' .$this::$tableDef->table. '" or unauthorised');
+		if (!isset($this->myData[$field]))
+			throw new Exception('Field "' .$field. '" in "' .$this::$tableDef->table. '" has not loaded for some reason');
 		
 		$fieldData = $this->myData[$field];
 		if ($fieldData instanceof _MOBOBJPrototype) {
@@ -659,37 +633,36 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return boolean True if allowed, false on failure.
 	*/
 	public function offsetSet($field, $value) {
-		if ($this->has_record()) {
-			$fields = $this->fieldList->getWriteable();
-			if (!isset($fields[$field]))
+		if ($this->hasRecord()) {
+			if (!array_key_exists($field, $this::$tableDef->getWriteableFields()))
 				throw new Exception('Attempt to set a non-writeable field "' .$field. '" in existing OBJ');
 		}
 		else {
-			$fields = $this->fieldList->getInsertable();
-			if (!isset($fields[$field]))
+			if (!array_key_exists($field, $this::$tableDef->getInsertableFields()))
 				throw new Exception('Attempt to set a non-insertable field "' .$field. '" in new OBJ');
 		}
-		$fieldParam = $fields[$field];
-		unset($fields);
+		$fieldDef = $this::$tableDef->fields[$field];
 		
-		// See if the new value is valid
-		switch ($fieldParam['type']) {
-		case 'rev_object':
-			throw new Exception('Attempt to set a MOB field');
-		case 'object':
+		// Fix up the types that are morphic
+		if (isset($fieldDef->object)) {
 			if (!is_object($value) || !($value instanceof HNOBJBasic))
-				$value = self::loadObject($fieldParam['table'], $value);
-			elseif ($value->getTable() != $fieldParam['table'])
+				$value = self::loadObject($fieldDef->object, $value);
+			elseif ($value->getTable() != $fieldDef->object)
 				throw new Exception('Attempt to set OBJ of wrong table in link field');
-			break;
-		case 'byte':
-			if (is_array($value)) {
-				if ($value[1] == FLAG_RESET)
-					$value = $this[$field] & ~$value[0];
-				elseif ($value[1] == FLAG_SET)
-					$value = $this[$field] | $value[0];
-			}
-			break;
+		} elseif ($fieldDef->type == 'byte' && is_array($value)) {
+			if ($value[1] == FLAG_RESET)
+				$value = $this[$field] & ~$value[0];
+			elseif ($value[1] == FLAG_SET)
+				$value = $this[$field] | $value[0];
+		}
+		
+		// Validate the value if nessessary
+		if (isset($fieldDef->values)) {
+			if (!in_array($value, $fieldDef->values))
+				throw new Exception('Invalid value being set for ' .$field);
+		} elseif (isset($fieldDef->validation)) {
+			if (!preg_match($fieldDef->validation, $value))
+				throw new Exception('Value for ' .$field. ' does not pass validation');
 		}
 		
 		// Store changed value if it has really changed
@@ -715,7 +688,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Required definition of interface Countable
 	*/
 	public function count() {
-		return count($this->fieldList->getReadable());
+		return count($this::$tableDef->getReadableFields());
 	}
 }
 
@@ -726,16 +699,16 @@ class HNOBJBasicIterator implements Iterator
 	private $cur = 0;
 
 	public function __construct($parent, $fields) {
-		$this->theObject = &$parent;
-		$this->theFields = &$fields;
+		$this->theObject =& $parent;
+		$this->theFields =& $fields;
 	}
 
 	public function current() {
-		return $this->theObject[(string) $this->theFields[$this->cur]['name']];
+		return $this->theObject[$this->theFields[$this->cur]];
 	}
 
 	public function key() {
-		return (string) $this->theFields[$this->cur]['name'];
+		return (string) $this->theFields[$this->cur];
 	}
 
 	public function next() {
@@ -751,6 +724,325 @@ class HNOBJBasicIterator implements Iterator
 	}
 }
 
+
+/**
+* Holds and tests the permissions of a definition.
+*/
+class _DefinitionPermission
+{
+	#public $readBy = array(), $writeBy = array(), $insertBy = array(), $deleteBy = array();
+	public $readBy = NULL, $writeBy = NULL, $insertBy = NULL, $deleteBy = NULL;
+
+	public function __construct(&$defs) {
+		$this->readBy =& $defs->readBy;
+		$this->writeBy =& $defs->writeBy;
+		$this->insertBy =& $defs->insertBy;
+		$this->deleteBy =& $defs->deleteBy;
+		unset($defs->readBy, $defs->writeBy, $defs->insertBy, $defs->deleteBy);
+	}
+
+	/*public function isUsed() {
+		return ($this->checkIfInside($this->readBy, 'IUR') || $this->checkIfInside($this->writeBy, 'IUW')
+			|| $this->checkIfInside($this->insertBy, 'IUI')|| $this->checkIfInside($this->deleteBy, 'IUD'));
+	}*/
+
+	public function readable($DEBUG) { return $this->checkIfInside($this->readBy, 'R-'.$DEBUG); }
+	public function writeable($DEBUG) { return $this->checkIfInside($this->writeBy, 'W-'.$DEBUG); }
+	public function insertable($DEBUG) { return $this->checkIfInside($this->insertBy, 'I-'.$DEBUG); }
+	public function deleteable($DEBUG) { return $this->checkIfInside($this->deleteBy, 'D-'.$DEBUG); }
+
+	/**
+	* Checks a premissions string to see if a group matches.
+	* 
+	* @param string $toCheck The string to check.
+	* @return boolean True if there was a match, false otherwise.
+	*/
+	private function checkIfInside($toCheck, $checkType) {
+#		echo "checkType$checkType " .implode(',',$toCheck). "\n";
+		if (!empty($GLOBALS['uo']))
+			return $GLOBALS['uo']->testUserType($toCheck);
+		
+		// Fallback for when they are not logged in yet or under cron
+		foreach ($toCheck as $val) {
+			if ($val == 'all' || (defined('HNWC_CRON') && $val == 'cron'))
+				return true;
+		}
+		return false;
+	}
+}
+
+class _DefinitionBase
+{
+	private static $nextPermissionId = 0;
+	private static $permission = array();
+	private $permissionId;
+	public function __construct() {
+		$this->permissionId = ++self::$nextPermissionId;
+	}
+	
+	public function __destruct() {
+		if (isset($this->permissionId))
+			unset(self::$permission[$this->permissionId]);
+	}
+	
+	public function &getPermission() {
+		if (!isset(self::$permission[$this->permissionId]))
+			self::$permission[$this->permissionId] = new _DefinitionPermission();
+		return self::$permission[$this->permissionId];
+	}
+	
+	public function setPermission(&$defs) {
+		if ($defs instanceof _DefinitionPermission)
+			self::$permission[$this->permissionId] =& $defs;
+		else
+			self::$permission[$this->permissionId] = new _DefinitionPermission($defs);
+	}
+	
+	public function setWithTableCopy(&$TableDef) {
+		$myPermission =& $this->getPermission();
+		$tablePermission =& $TableDef->getPermission();
+		
+		if ($myPermission->readBy === NULL) $myPermission->readBy =& $tablePermission->readBy;
+		if ($myPermission->writeBy === NULL) $myPermission->writeBy =& $tablePermission->writeBy;
+		if ($myPermission->insertBy === NULL) $myPermission->insertBy =& $tablePermission->insertBy;
+		if ($myPermission->deleteBy === NULL) $myPermission->deleteBy =& $tablePermission->deleteBy;
+		if ($myPermission->readBy == $tablePermission->readBy
+			&& $myPermission->writeBy == $tablePermission->writeBy
+			&& $myPermission->insertBy == $tablePermission->insertBy
+			&& $myPermission->deleteBy == $tablePermission->deleteBy
+			)
+			self::$permission[$this->permissionId] =& $tablePermission;
+	}
+}
+
+class _DefinitionTable extends _DefinitionBase
+{
+	/* PLEASE TREAT ALL AS READ ONLY! */
+	public $connection = 'DEFAULT';
+	public $table = '';
+	public $hasAutoId = false;
+	public $keys = array();
+	public $fields = array();
+	public $subtables = array();
+	private $readableFields;
+	private $writeableFields;
+	private $insertableFields;
+
+	public function __construct($json) {
+		parent::__construct();
+		
+		$jTable = json_decode($json);
+		$this->setPermission($jTable);
+		if ($errorCode = json_last_error()) {
+			$constants = get_defined_constants(true);
+			$jsonConstants = array();
+			foreach ($constants['json'] as $key => $val) {
+				if (!strncmp($key, "JSON_ERROR_", 11))
+					$jsonConstants[$val] = $key;
+			}
+			throw new Exception('Table JSON definition could not be decoded. Code:' .$errorCode. ', Name:' .$jsonConstants[$errorCode]);
+		}
+		
+		foreach ($jTable as $key => &$val) {
+			if (!isset($this->{$key}))
+				throw new Exception('Invalid Table Parameter "' .$key. '"');
+			$this->{$key} =& $val;
+		}
+		unset($val);
+#echo "Do Table $this->table\n";
+		
+		$this->connection = 'HNDB_' .$this->connection;
+		
+		$fields = $this->fields;
+		$this->fields = array();
+		foreach ($fields as $key => $val)
+			$this->fields[$key] = new _DefinitionField($this, $key, $val);
+		
+		$keys = $this->keys;
+		$this->keys = array();
+		foreach ($keys as $val) {
+			if (!isset($this->fields[$val]))
+				throw new Exception('Invalid key field "' .$val. '"');
+			if ($this->fields[$val]->type == 'autoid') {
+				$this->hasAutoId = true;
+				$this->fields[$val]->type = 'integer';
+			}
+			$this->keys[$val] =& $this->fields[$val];
+		}
+		
+		// Check that there is only one autoid if any
+		if ($this->hasAutoId && count($this->keys) != 1)
+			throw new Exception('There cannot be more than one autoid or key for a table');
+		
+		$subtables = $this->subtables;
+		$this->subtables = array();
+		foreach ($subtables as $key => $val)
+			$this->subtables[$key] = new _DefinitionSubTable($this, $key, $val);
+		
+		// Remove fields, keys and subtables that can never be used
+		foreach ($this->fields as $fieldName => &$fieldDef) {
+			if (!$fieldDef->getPermission()->readable('FE')) {
+				unset($this->fields[$fieldName]);
+				
+				// If field is not readable it cannot be a key either
+				unset($this->keys[$fieldName]);
+			}
+		}
+		unset($fieldDef);
+		foreach ($this->subtables as $subtableName => &$subtableDef) {
+			// Already checked in subtable creation
+			// if (!$subtableDef->getPermission()->readable('STE'))
+			if (isset($subtableDef->NOT_READABLE))
+				unset($this->subtables[$subtableName]);
+		}
+		unset($subtableDef);
+		
+		// Readable fields list is already known
+		$this->readableFields =& $this->fields;
+#echo "End Table $this->table\n";
+	}
+	
+	public function getReadableFields() {
+		/* 
+		if (!isset($this->readableFields)) {
+			$this->readableFields = array();
+			foreach ($this->fields as $fieldName => &$fieldDef) {
+				if ($fieldDef->getPermission()->readable('GRF'))
+					$this->readableFields[$fieldName] =& $fieldDef;
+			}
+		}*/
+		return $this->readableFields;
+	}
+	
+	public function getReadableFieldsAndSubtables() {
+		return array_merge($this->getReadableFields(), $this->subtables);
+	}
+	
+	public function getWriteableFields() {
+		if (!isset($this->writeableFields)) {
+			$this->writeableFields = array();
+			foreach ($this->fields as $fieldName => &$fieldDef) {
+				if ($fieldDef->getPermission()->writeable('GWF'))
+					$this->writeableFields[$fieldName] =& $fieldDef;
+			}
+		}
+		return $this->writeableFields;
+	}
+	
+	public function getInsertableFields() {
+		if (!isset($this->insertableFields)) {
+			$this->insertableFields = array();
+			foreach ($this->fields as $fieldName => &$fieldDef) {
+				if ($fieldDef->getPermission()->insertable('GIF'))
+					$this->insertableFields[$fieldName] =& $fieldDef;
+			}
+		}
+		return $this->insertableFields;
+	}
+	
+	public function deleteable() {
+		return $this->getPermission()->deleteable('TD');
+	}
+}
+
+class _DefinitionField extends _DefinitionBase
+{
+	/* PLEASE TREAT ALL AS READ ONLY! */
+	private static $allowedParameters = array('type','object','SQL',
+		'validation','values','default','localField','remoteField');
+	/* Valid param for OBJ/MOB are type, SQL, readBy, writeBy, insertBy, (validation OR values), default */
+#	public $type = '', $object = '', $SQL = '', $validation = false, $values = array(), $default = '';
+#	public $type, $object, $SQL, $validation, $values, $default;
+	/* Valid param for AutoQuery are autoVisibleSQL, autoInternSQL, autoRequireOBJs */
+	//public $autoVisibleSQL = '', $autoInternSQL = '', $autoRequireOBJs = '';
+	
+	public function __construct(&$TableDef, $virtName, $defs) {
+		parent::__construct();
+		$this->virtName = $virtName;
+		$this->tableDef =& $TableDef;
+		
+		$this->setPermission($defs);
+		foreach ($defs as $key => &$val) {
+			if (!in_array($key, self::$allowedParameters))
+				throw new Exception('Invalid Field Parameter "' .$key. '"');
+			$this->{$key} =& $val;
+		}
+		if (empty($this->SQL)) $this->SQL = '`T`.`' .$virtName. '`';
+		$this->setWithTableCopy($TableDef);
+		
+		// Check that objects are setup correctly
+		if (isset($this->object)) {
+			if (empty($this->localField)) {
+				if (count($TableDef->keys) != 1)
+					throw new Exception('Default localField value requires exactly one key for this table');
+				reset($TableDef->keys);
+				$this->localField = key($TableDef->keys);
+			}
+			if (empty($this->remoteField))
+				$this->remoteField = $virtName;
+		} elseif (isset($this->localField) && isset($this->remoteField)) {
+			throw new Exception('remoteField not allowed when field is not an object link');
+		}
+	}
+	
+	/**
+	* Replaces `T` with a real table alias.
+	* Use $table = false to just remove the `T`.
+	*/
+	public function SQLWithTable($table = false) {
+		$table = ($table ? '`' .$table. '`.' : '');
+		return str_replace('`T`.', $table, $this->SQL);
+	}
+}
+
+class _DefinitionSubTable extends _DefinitionBase
+{
+	/* PLEASE TREAT ALL AS READ ONLY! */
+	private static $allowedParameters = array('object','localField','remoteField');
+#	public $object = '', $localField = '', $remoteField = '';
+#	public $object, $localField, $remoteField;
+	
+	public function __construct(&$TableDef, $virtName, $defs) {
+		parent::__construct();
+		$this->virtName = $virtName;
+		$this->tableDef =& $TableDef;
+		
+		$this->setPermission($defs);
+		foreach ($defs as $key => &$val) {
+			if (!in_array($key, self::$allowedParameters))
+				throw new Exception('Invalid SubTable Parameter "' .$key. '"');
+			$this->{$key} = &$val;
+		}
+		
+		// Prove Permissions
+		$this->setWithTableCopy($TableDef);
+		if (!$this->getPermission()->readable('STEE')) {
+			$this->NOT_READABLE = true; // Used for clobber in _DefinitionTable
+			return;
+		}
+		
+		if (empty($this->table)) $this->table = $virtName;
+		if (empty($this->localField)) {
+			if (count($TableDef->keys) != 1)
+				throw new Exception('Default localField value requires exactly one key for this table');
+			reset($TableDef->keys);
+			$this->localField = key($TableDef->keys);
+		}/* else {
+			$localField = $this->localField;
+			$this->localField = array();
+			foreach ($localField as $fieldName)
+				$this->localField[] =& $TableDef->fields[$fieldName];
+		}*/
+		if (empty($this->remoteField)) {
+			if (count($TableDef->keys) != 1)
+				throw new Exception('Default remoteField value requires exactly one key for this table');
+			reset($TableDef->keys);
+			$this->remoteField = key($TableDef->keys);
+		}
+	}
+}
+
+
 abstract class _MOBOBJPrototype {}; // This first Prototype is for simplfying logic
 class _MOBPrototype extends _MOBOBJPrototype
 {
@@ -761,11 +1053,9 @@ class _MOBPrototype extends _MOBOBJPrototype
 		return array(self::$totalCreated,self::$totalUpgraded,self::$totalDestroyed);
 	}
 
-	public $table; // The table the MOB is to be loaded with
-	public $field; // The ID field needed to load the MOB
-	public function __construct($table, $field) {
-		$this->table = $table;
-		$this->field = $field;
+	public $fieldDef;
+	public function __construct(&$fieldDef) {
+		$this->fieldDef =& $fieldDef;
 		self::$totalCreated++;
 	}
 	public function __destruct() {
@@ -774,7 +1064,9 @@ class _MOBPrototype extends _MOBOBJPrototype
 	
 	public function getUpgrade($parent, $loadNow = false) {
 		self::$totalUpgraded++;
-		return new HNMOBBasic($this->table, $this->field, $parent->getId(), $parent, $loadNow);
+		$localFieldVal = $parent[$this->fieldDef->localField];
+		$remoteField = $this->fieldDef->remoteField;
+		return new HNMOBBasic($this->fieldDef->object, $remoteField, $localFieldVal, $parent, $loadNow);
 	}
 }
 class _OBJPrototype extends _MOBOBJPrototype
@@ -800,9 +1092,9 @@ class _OBJPrototype extends _MOBOBJPrototype
 		self::$totalDestroyed++;
 	}
 	
-	public function getUpgrade($loadNow = false, $fieldList = false) {
+	public function getUpgrade($loadNow = false) {
 		self::$totalUpgraded++;
-		$object = HNOBJBasic::loadObject($this->class, $this->myId, $loadNow, $fieldList);
+		$object = HNOBJBasic::loadObject($this->class, $this->myId, $loadNow);
 		if (isset($this->data))
 			$object->_internal_set_data($this->data);
 		return $object;

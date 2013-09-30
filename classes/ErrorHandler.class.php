@@ -7,7 +7,7 @@
 * more flexible with.
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -56,15 +56,18 @@ class ErrorHandler
 	public static function handler($errNo, $errStr, $errFile, $errLine) {
 		$fatals = array(E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR);
 		if (self::$processErrors || in_array($errNo, $fatals)) {
-			echo self::$errorType[$errNo]. ': ';
-			echo "$errStr in '$errFile' on line $errLine.\n";
+			// Ignore notice in PEAR
+			if (in_array($errNo, $fatals) && !preg_match('|[\\/]pear[\\/]|i', $errFile)) {
+				echo self::$errorType[$errNo]. ': ';
+				echo "$errStr in '$errFile' on line $errLine.\n";
 
-			if (DEBUG) {
-				ob_start();
-					debug_print_backtrace();
-				$dt = ob_get_clean();
-				$dt = self::replaceFieldList($dt);
-				echo "\n";
+				if (DEBUG) {
+					ob_start();
+						debug_print_backtrace();
+					$dt = ob_get_clean();
+					$dt = self::replaceFieldList($dt);
+					echo "\n";
+				}
 			}
 		}
 
@@ -97,7 +100,7 @@ class ErrorHandler
 		} while ($oldStrLen != strlen($str));
 		
 		// Replace built in passwords
-		$str = str_replace(MYSQL_PASS, '********', $str);
+#		$str = str_replace(MYSQL_PASS, '********', $str);
 		return $str;
 	}
 	

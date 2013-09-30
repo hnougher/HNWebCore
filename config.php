@@ -7,7 +7,7 @@
 * rest of the scripts to run without constant changes.
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 define('PHP_OS_WINDOWS', strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
@@ -30,6 +30,12 @@ $config = array(
 	'SERVER_EMAIL'		=> '', // The server will send emails from this email
 	'ADMIN_EMAILS'		=> '', // (comma seperated) Emails about system errors will be sent here
 
+	// @see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
+	// Default DB Connection
+	'HNDB_DEFAULT'		=> 'hnmysqli://hnwc:RCWSn2su7MjJFp6F@127.0.0.1/hnwc',
+	'HNDB_LDAP'			=> 'hnldap://ldap.example.com.au/db?version=3',
+	'HNDB_LDAP_LOGIN'	=> 'hnldap://uid=%s,ou=People,dc=example,dc=com,dc=au:%s@ldap.example.com.au/db?version=3',
+
 	// Mail (uncomment what you want/need)
 	// See http://pear.php.net/manual/en/package.mail.mail.factory.php
 	'MAIL_BACKEND'		=> 'smtp',	// mail, smtp, sendmail
@@ -41,20 +47,6 @@ $config = array(
 	'MAIL_SMTP_DEBUG'	=> false,	// Default: FALSE
 	'MAIL_SMTP_PERSIST'	=> true,	// Default: FALSE. Note: only a hint as there are hacks involved.
 
-	// Main Database
-	'MYSQL_HOST'		=> '127.0.0.1',
-	'MYSQL_USER'		=> 'hnwc',
-	'MYSQL_PASS'		=> 'RCWSn2su7MjJFp6F',
-	'MYSQL_DATABASE'	=> 'hnwc',
-	
-	// LDAP Database
-	'LDAP_ENABLED'		=> false,
-	'LDAP_VERSION'		=> 3, // Gives protocol errors when set wrong
-	'LDAP_HOST'			=> 'localhost',
-	'LDAP_PORT'			=> 10389,
-	'LDAP_BIND_RDN'		=> NULL,
-	'LDAP_BIND_PASS'	=> NULL,
-	
 	'CLASS_PATH'		=> BASE_PATH . '/classes',
 	'CRON_PATH'			=> BASE_PATH . '/cron',
 	'DBSTRUCT_PATH'		=> BASE_PATH . '/dbstruct',

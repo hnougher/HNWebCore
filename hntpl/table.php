@@ -8,7 +8,7 @@
 * This page has classes that are used to create tables and its contents.
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 

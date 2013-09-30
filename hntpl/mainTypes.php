@@ -8,7 +8,7 @@
 * This page has classes that are used to create tables and its contents.
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -139,9 +139,9 @@ class HNTPLMainTypes extends HNTPLCore
 	* 
 	* @see HNTPLSelector::__construct()
 	*/
-	public function new_selector($type, $queryCode, $uri, $fieldNames = array()) {
+	public function new_selector($queryCode, $fieldNames = array()) {
 		require_once TEMPLATE_PATH. '/selector.php';
-		$content = new HNTPLSelector($type, $queryCode, $uri, $fieldNames);
+		$content = new HNTPLSelector($queryCode, $fieldNames);
 		$this->new_raw($content);
 		return $content;
 	}

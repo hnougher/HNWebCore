@@ -4,9 +4,10 @@
  * @author Hugh Nougher <hughnougher@gmail.com>
  */
 
-function checkRequiredReadable($table, $requiredFields = array()) {
-	$fieldList = FieldList::loadFieldList($table);
-	$readable = array_keys($fieldList->getReadable());
+function checkRequiredReadable($object, $requiredFields = array()) {
+	require_once CLASS_PATH.'/OBJ.'.$object.'.class.php';
+	$tableDef = call_user_func(array('OBJ'.$object, 'getTableDef'));
+	$readable = array_keys($tableDef->getReadableFields());
 	return (count(array_diff($requiredFields, $readable)) == 0);
 }
 
@@ -17,20 +18,20 @@ case 'user':
 	$table = 'user';
 	$requiredFields = array('userid', 'username', 'first_name', 'last_name', 'gender');
 	$fieldNames = array('Username', 'Full Name', 'Gender');
-	$queryRows = StoreAJAXQuery('SELECT
+	$queryRows = StoreAJAXQuery('DEFAULT', 'SELECT
 		`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`
 		FROM `user`
 		WHERE
-			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%",?,"%")
+			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(?,""),"%")
 		ORDER BY
 			ELT(?,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) ASC,
 			ELT(?*-1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) DESC,
 			`username`
-		LIMIT ?,?', 'siiii');
-	$queryCount = StoreAJAXQuery('SELECT COUNT(*)
+		LIMIT ?,?', array('text','integer','integer','integer','integer'));
+	$queryCount = StoreAJAXQuery('DEFAULT', 'SELECT COUNT(*)
 		FROM `user`
-		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%",?,"%")
-		', 's');
+		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(?,""),"%")
+		', array('text'));
 	break;
 
 default:
@@ -39,14 +40,13 @@ default:
 }
 
 if (!checkRequiredReadable($table, $requiredFields)) {
-	error('You do not have enough permision to view this data');
+	error('You do not have enough permission to view this data');
 	return;
 }
 
 $after = SERVER_ADDRESS . (isset($_REQUEST['after']) ? '/' .$_REQUEST['after'] : '/select_plan');
 $after .= (strpos( $after, '?' ) === false ? '?' : '&').$query[0]. '=--ID--';
 
-$selector = $HNTPL->new_selector(
-	HNTPLSelector::TYPE_PAGE|HNTPLSelector::TYPE_SEARCH|HNTPLSelector::TYPE_ORDER,
-	$queryRows, $after, $fieldNames);
+$selector = $HNTPL->new_selector($queryRows, $fieldNames);
+$selector->set_selector_type(HNTPLSelector::TYPE_PAGE | HNTPLSelector::TYPE_SEARCH | HNTPLSelector::TYPE_ORDER);
 $selector->set_query_code_counter($queryCount);

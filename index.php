@@ -10,7 +10,7 @@
 * rest of the pages on the site are reasonably secure.
 * 
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -39,16 +39,11 @@ if (isset($_REQUEST['TEST_SESSION_TIMEOUT'])) {
 }
 
 require_once CLASS_PATH. '/ErrorHandler.class.php';
-require_once CLASS_PATH. '/HNMySQL.class.php';
-require_once CLASS_PATH. '/FieldList.class.php';
+require_once CLASS_PATH. '/HNDB.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
-require_once CLASS_PATH. '/HNAutoQuery.class.php';
+require_once CLASS_PATH. '/AutoQuery.class.php';
 require_once TEMPLATE_PATH. '/page.php';
-if (LDAP_ENABLED) {
-	require_once CLASS_PATH. '/HNLDAP.class.php';
-	require_once CLASS_PATH. '/HNLDAPBasic.obj.class.php';
-}
 
 // This is where everything actually starts for HNWebCore
 Loader::initiate();
@@ -77,21 +72,27 @@ function isFalse($condition, $message) {
 * NOTE: This function will get *very* slow when lots are stored.
 * NOTE: Stored querys get cleared when session ends (logout or timeout).
 *
-* @param $sql The SQL which is of the style of a MySQLi Statement.
-* @param $types The string of types that a MySQLi Statement requires.
+* @param $connection The DB connection on which this query will run.
+* @param $sql The SQL which is of the style of a MDB2 statement.
+* @param $paramTypes An array of types that a MDB2 Statement uses for input types.
+* @param $resultTypes An array of types that a MDB2 Statement uses for output types OR MDB2_PREPARE_MANIP.
 * @return string unique code which is to be put into a JS request to the URI like
 *      "/ajax.php?q=<code>&p[]=<param1>&p[]=<param2>" which when called returns a
 *      JSON array of results.
 */
-function StoreAJAXQuery($sql, $types = '') {
+function StoreAJAXQuery($connection, $sql, $paramTypes = array(), $resultTypes = array()) {
 	if (empty($_SESSION['AJAX_QUERIES']))
 		$_SESSION['AJAX_QUERIES'] = array();
 	
 	// Check if this query already exists in the stored set.
 	foreach ($_SESSION['AJAX_QUERIES'] as $k => $v) {
-		if ($v[1] == $types && $v[0] == $sql)
+		if ($v[0] == $connection && $v[1] == $sql)
 			return $k;
 	}
+	
+	// Check the parameters are reasonably valid
+	if (!defined('HNDB_' .$connection))
+		throw new Exception('Undefined connection used');
 	
 	// Generate unique code
 	do {
@@ -99,7 +100,7 @@ function StoreAJAXQuery($sql, $types = '') {
 	} while (isset($_SESSION['AJAX_QUERIES'][$code]));
 	
 	// Store the query and return code
-	$_SESSION['AJAX_QUERIES'][$code] = array($sql, $types);
+	$_SESSION['AJAX_QUERIES'][$code] = array($connection, $sql, $paramTypes, $resultTypes);
 	return $code;
 }
 
@@ -124,18 +125,6 @@ class Loader
 
 		// Set the Default Timezone
 		date_default_timezone_set(SERVER_TIMEZONE);
-
-		// Login to DB Server(s)
-		HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
-		if (LDAP_ENABLED) {
-			try {
-				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, LDAP_BIND_RDN, LDAP_BIND_PASS, LDAP_PORT);
-			} catch (Exception $e) {
-				if (DEBUG)
-					throw $e;
-				die('Cannot connect to LDAP server.');
-			}
-		}
 
 		// Collect the normal vars from the input
 		$query = !empty($_GET['autoquery']) ? explode('/', $_GET['autoquery']) : array('root');
@@ -170,8 +159,8 @@ class Loader
 
 			// Load the staff object
 			$uo = HNOBJBasic::loadObject('user', $_SESSION['UserLoggedIn']);
-			$GLOBALS['uo'] = $uo;
-			$GLOBALS['UserRolesAtStart'] = $uo->user_types();
+			self::loggedInUser($uo);
+			$GLOBALS['UserRolesAtStart'] = $uo->userTypes();
 
 			// Delay set the debug showing for programmers
 			if ($uo->testUserType('programmer')) {
@@ -223,6 +212,9 @@ class Loader
 			if (STATS)
 				printf('<span class="screenOnly">Total Script Time: %1.2e sec</span>', microtime(1) - $GLOBALS['ScriptStartTime']);
 		}
+		
+		// Check the uo has not changed
+		self::loggedInUser('check');
 	}
 
 	private static function InsertDebugStats() {
@@ -243,13 +235,22 @@ class Loader
 	public static function get_stats() {
 		$OBJStats = HNOBJBasic::getObjectCounts();
 		$MOBStats = HNMOBBasic::getObjectCounts();
-		$out = sprintf("<b>User Roles at Start:</b> %s\n<b>Total Queries:</b> %d\n<b>Total Query Time:</b> %1.2e sec\n<b>Pre Output Time:</b> %1.2e sec\n<b>Memory Used At End:</b> %01.1f MB\n<b>Memory Used Peak:</b> %01.1f MB\n<b>Total DB Objects Created:</b> %d\n<b>Current DB Objects:</b> %d",
+		$out = sprintf("<hr/><b>User Roles at Start:</b> %s\n<b>Pre Output Time:</b> %1.2e sec\n<b>Memory Used At End, Peak:</b> %01.1f MB, %01.1f MB",
 			(isset($GLOBALS['UserRolesAtStart']) ? implode(', ', array_keys($GLOBALS['UserRolesAtStart'])) : 'all'),
-			HNMySQL::sum_of_queries(),
-			HNMySQL::sum_of_time(),
 			microtime(1) - $GLOBALS['ScriptStartTime'],
 			memory_get_usage() / 1024 / 1024,
-			memory_get_peak_usage() / 1024 / 1024,
+			memory_get_peak_usage() / 1024 / 1024
+			);
+		
+		foreach (HNDB::$runStats as $type => $stats) {
+			$out .= "\n<b>" .$type. "</b>";
+			foreach ($stats as $key => $val) {
+				$out .= sprintf("\n\t<b>%s</b>: %1.3" .(is_int($val) ? 'd' : 'f sec'),
+					$key, $val);
+			}
+		}
+		
+		$out .= sprintf("\n<b>OBJ Total Created, Current:</b> %d, %d",
 			$OBJStats[0],
 			$OBJStats[0] - $OBJStats[1]
 			);
@@ -257,7 +258,7 @@ class Loader
 		foreach ($OBJStats[2] AS $table => $total)
 			$out .= "\n\t$table: $total, " .($total - $OBJStats[3][$table]);
 		
-		$out .= sprintf( "\n<b>Total DB MOBjects Created:</b> %d\n<b>Current DB MOBects:</b> %d",
+		$out .= sprintf("\n<b>MOB Total Created, Current:</b> %d, %d",
 			$MOBStats[0],
 			$MOBStats[0] - $MOBStats[1]
 			);
@@ -267,7 +268,7 @@ class Loader
 		
 		$MOBProtoStats = _MOBPrototype::getObjectCounts();
 		$OBJProtoStats = _OBJPrototype::getObjectCounts();
-		$out .= sprintf( "\n<b>Total OBJProto Created:</b> %d\n<b>Total OBJProto Unused:</b> %d\n<b>Current OBJProto:</b> %d\n<b>Total MOBProto Created:</b> %d\n<b>Total MOBProto Unused:</b> %d\n<b>Current MOBProto:</b> %d",
+		$out .= sprintf( "\n<b>OBJProto Created, Unused, Current:</b> %d, %d, %d\n<b>MOBProto Created, Unused, Current:</b> %d, %d, %d",
 			$OBJProtoStats[0],
 			$OBJProtoStats[0] - $OBJProtoStats[1],
 			$OBJProtoStats[0] - $OBJProtoStats[2],
@@ -346,96 +347,46 @@ class Loader
 	*/
 	private static function login_end() {
 		$username = $_REQUEST['login_user'];
+		$password = $_POST['login_pass'];
+		unset($_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass']);
 		
-		if (preg_match('/^(.*)@example.com$/', $username, $matches)) {
-			$password = $_POST['login_pass'];
-			unset( $_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass'] );
-			
-			// Using LDAP login
-			$ldapuser = 'uid=' .HNLDAP::escape($matches[1]). ',ou=People,dc=example,dc=com';
-			
-			// Check login to LDAP succeeds
-			try {
-				HNLDAP::close();
-				HNLDAP::connect(LDAP_HOST, LDAP_VERSION, $ldapuser, $password, LDAP_PORT);
-			} catch (HNDBException $e) {
-				error('Incorrect Username or Password Entered.');
-				if (DEBUG)
-					error($e->getMessage());
-				return;
-			} catch (Exception $e) {
-				error('Cannot connect to LDAP server.');
-				if (DEBUG)
-					error($e->getMessage());
-				return;
-			}
-			
-			// Check that the user was of staff type
-			$uuo = HNOBJBasic::loadObject('mojo_user', $username);
-			if ($uuo['employeetype'][0] != 'ps') {
-				error('The login supplied did not have required permission.');
-				return;
-			}
-			
-			// Login is OK so we need to prepare our normal DB
-			if (count($uuo['users']) == 0) {
-				$uo = $uuo['users']->addNew();
-				$uo['role'] = 'Unit Coordinator';
-				$uo->save();
-				$uuo->load();
-			}
-			$uo = $uuo['users'][0];
-			$GLOBALS['uo'] = $uo;
-			
-			// Copy all required data to mysql object
-			$uo['username'] = $uuo['mail'][0];
-			$uo['email'] = $uuo['mail'][0];
-			$uo['first_name'] = $uuo['givenname'][0];
-			$uo['last_name'] = $uuo['sn'][0];
-			
-			// Save
-			$uo->save();
-			$userid = $uo->getId();
+		if (!preg_match('/^(.*)@(.*)$/', $username, $matches)) {
+			require_once CLASS_PATH.'/OBJ.ldapuser.class.php';
+			$DBUser = OBJLDAPUser::Authenticate($username, $password);
 		} else {
-			// Using MySQL user login
-			// Salt the password for MySQL login
-			$pass = hash(LOGIN_HASHALG, LOGIN_PRESALT.$_POST['login_pass'].LOGIN_POSTSALT);
-			unset($_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass']);
-
-			// Check the login is correct
-			$user = HNMySQL::escape($username);
-			$pass = HNMySQL::escape($pass);
-			// Note: The pipe in the following query is to stop problems with strange trailing chars being ignored
-			$sql = 'SELECT `userid` FROM `user` WHERE CONCAT(`username`,"|")="' .$user. '|" AND `password`="' .$pass. '" LIMIT 1';
-			$result = HNMySQL::query($sql);
-
-			// Was login successful?
-			if (!$result || $result->num_rows != 1) {
-				// Record login Failure to login record
-				self::login_logit(true, false);
-				
-				// Set error message
-				error('Incorrect Username or Password Entered.');
-				return;
-			}
-			
-			$row = $result->fetch_row();
-			$userid = $row[0];
+			require_once CLASS_PATH.'/OBJ.user.class.php';
+			$DBUser = OBJUser::Authenticate($username, $password);
 		}
+		
+		if (!$DBUser)
+			return false;
 		
 		// If successful we prepair to go back into the main of the website
 		// Setup session so the rest of the program knows we are logged in
-		$_SESSION['UserLoggedIn'] = $userid;
+		$_SESSION['UserLoggedIn'] = $DBUser->getId();
 		$_SESSION['UserLastSeen'] = time();
 		$_SESSION['UserSessionId'] = session_id();
-		
-		// Record login Success to login record
-		self::login_logit(true, true);
 		
 		// Redirect to this page again
 		$getVars = self::make_getVars(array('autoquery', 'login', 'logout', 'auto_login', 'login_user', 'login_pass'));
 		header('Location: ' .SERVER_ADDRESS. '/' .$_GET['autoquery']. '?' .$getVars);
 		die();
+	}
+
+	/**
+	* This method is used to both set the currently logged in user OBJ and
+	* also is used to check that the uo has not changed by end of script.
+	*/
+	public static function loggedInUser($OBJUserOrCheck) {
+		static $hasBeenSet = false;
+		if ($OBJUserOrCheck == 'check') {
+			if ($hasBeenSet !== false && $GLOBALS['uo'] !== $hasBeenSet)
+				throw new Exception('GLOBALS[uo] has been changed!');
+			return;
+		}
+		if ($hasBeenSet) throw new Exception('Logged in user cannot be set now');
+		$hasBeenSet = $OBJUserOrCheck;
+		$GLOBALS['uo'] = $OBJUserOrCheck;
 	}
 
 	/**

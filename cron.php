@@ -18,14 +18,11 @@ date_default_timezone_set(SERVER_TIMEZONE);
 
 // Default Includes
 require_once CLASS_PATH. '/ErrorHandler.class.php';
-require_once CLASS_PATH. '/HNMySQL.class.php';
-require_once CLASS_PATH. '/FieldList.class.php';
+require_once CLASS_PATH. '/HNDB.class.php';
 require_once CLASS_PATH. '/HNOBJBasic.obj.class.php';
 require_once CLASS_PATH. '/HNMOBBasic.class.php';
-require_once CLASS_PATH. '/HNAutoQuery.class.php';
+require_once CLASS_PATH. '/AutoQuery.class.php';
 require_once CLASS_PATH. '/HNMail.php';
-
-HNMySQL::connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS, MYSQL_DATABASE);
 
 function out($str) {
 	echo $str . "\n";

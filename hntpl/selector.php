@@ -7,7 +7,7 @@
 *
 * This page contains the form template implementation.
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
@@ -22,15 +22,16 @@ require_once TEMPLATE_PATH. '/core.php';
 class HNTPLSelector extends HNTPLCore
 {
 	// Base level bitfield, can be OR'd together as a type
+	const TYPE_ALL		= 0x000F;	// Used as mask and selects all types in one go
 	const TYPE_BASIC	= 0x0000;	// No extras
 	const TYPE_PAGE		= 0x0001;	// Page controls
 	const TYPE_SEARCH	= 0x0002;	// Search box
 	const TYPE_FILTER	= 0x0004;	// Per field filter/search
 	const TYPE_ORDER	= 0x0008;	// Column ordering
 
-	private $type;
+	private $type = self::TYPE_BASIC;
 	private $queryCode;
-	private $uri;
+	private $uri = false;
 	private $fieldNames;
 	private $queryCodeCounter;
 
@@ -44,7 +45,6 @@ class HNTPLSelector extends HNTPLCore
 	private $pageCtrlBtns = 'multipage';
 
 	/**
-	* @param $type One of the TYPE_* consts of this class.
 	* @param $queryCode The query code returns by StoreAJAXQuery.
 	*   The stored query should follow the rules of the TYPE picked.
 	*   All types need to have the first return parameter as the ID field for not displaying but gets put into the URI.
@@ -52,17 +52,27 @@ class HNTPLSelector extends HNTPLCore
 	*   TYPE_BASICPAGE should have one param, the page number.
 	*   TYPE_SEARCH should have one param, the search string.
 	*   TYPE_SEARCHPAGE should have two params, first is the search string, the second is the page number.
-	* @param $uri The location to send the selected ID.
-	* 		Do not include hostnames or leading slash.
-	* 		Keyword --ID-- is replaced with the first field in the SQL results.
-	* 		eg: client/review?client=--ID--&course=1
 	* @param array $fieldNames The field names for the columns defined in the SQL.
 	*/
-	public function __construct($type, $queryCode, $uri, $fieldNames = array()) {
-		$this->type = $type;
+	public function __construct($queryCode, $fieldNames = array()) {
 		$this->queryCode = $queryCode;
-		$this->uri = $uri;
 		$this->fieldNames = $fieldNames;
+	}
+
+	/**
+	* @param $type One or more of the TYPE_* consts of this class OR'ed together.
+	*/
+	public function set_selector_type($type) {
+		$this->type = $type & self::TYPE_ALL;
+	}
+
+	/**
+	* @param $uri The location to send the selected ID.
+	* 		Keyword --ID-- is replaced with the first field in the SQL results.
+	* 		eg: /client/review?client=--ID--&course=1
+	*/
+	public function set_row_onclick_uri($uri) {
+		$this->uri = $uri;
 	}
 
 	/**
@@ -281,12 +291,14 @@ class HNTPLSelector extends HNTPLCore
 						$tr.css("cursor", "pointer");
 					}
 
+					<?php if ($this->uri !== false || $this->rowOnclickMethod != "rowOnclickDefault") { ?>
 					(function(){
 						// To copy rowID for each row
 						var rowID = rowdata[i][0];
 						$tr.on("click", function(e){<?php echo $this->rowOnclickMethod; ?>(e, rowID)});
 					})();
 					$tr.addClass("clickable");
+					<?php } ?>
 					<?php echo $this->rowDisplayMethod; ?>($tr, rowdata[i]);
 				}
 			}
@@ -300,7 +312,7 @@ class HNTPLSelector extends HNTPLCore
 		<?php if ($this->type & self::TYPE_PAGE) echo "pageCtrlUpdate();"; ?>
 		$selector.find("#content").replaceWith($base);
 	};
-	<?php if ($this->rowOnclickMethod == "rowOnclickDefault") { ?>
+	<?php if ($this->uri !== false && $this->rowOnclickMethod == "rowOnclickDefault") { ?>
 	function rowOnclickDefault(e, rowID) {
 		document.location = setting.uri.replace("--ID--", rowID);
 	};
@@ -309,20 +321,22 @@ class HNTPLSelector extends HNTPLCore
 	function headDisplayDefault($tr, fieldNames) {
 		var curOrderIndex = $(".orderp").val();
 		for (var i = 0; i < fieldNames.length; i++) {
-			var $th = $("<th/>");
+			var $th = $("<th/>").addClass("clickable");
 			$tr.append($th);
 			<?php if ($this->type & self::TYPE_ORDER) { ?>
 			(function(){
 				var newIndex = i+2;
-				$th.addClass("clickable");
-				if (newIndex == curOrderIndex)
-					$th.addClass("orderASC");
-				if (-newIndex == curOrderIndex)
-					$th.addClass("orderDESC");
+				var $spacer = $("<span/>").addClass("spacer");
+				if (newIndex == curOrderIndex) {
+					$th.addClass("orderASC").append($spacer);
+				}
+				if (-newIndex == curOrderIndex) {
+					$th.addClass("orderDESC").append($spacer);
+				}
 				$th.on("click", {newIndex:newIndex}, columnOrderSet);
 			})();
 			<?php } ?>
-			$th.html(fieldNames[i]);
+			$th.prepend(fieldNames[i]);
 		}
 	};
 	<?php } ?>

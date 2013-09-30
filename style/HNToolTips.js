@@ -5,7 +5,7 @@
 * HN's JS code to make a tooltip appear on anything with a tooltip attribute.
 *
 * @author Hugh Nougher <hughnougher@gmail.com>
-* @version 2.1
+* @version 2.3
 * @package HNWebCore
 */
 
