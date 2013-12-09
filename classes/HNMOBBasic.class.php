@@ -196,13 +196,13 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		
 		$DB =& HNDB::singleton(constant($this->tableDef->connection));
 		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadChildren, $whereList, $orderParts);
-		if (PEAR::isError($stmt))
+		if (HNDB::MDB2()->isError($stmt))
 			throw new Exception('Statement is invalid!');
 		$result = $stmt->execute();
-		if (PEAR::isError($result))
+		if (HNDB::MDB2()->isError($result))
 			throw new Exception('Result is invalid!');
 		
-		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !PEAR::isError($row)) {
+		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !HNDB::MDB2()->isError($row)) {
 			$idSet = array();
 			foreach ($this->tableDef->keys as $fieldName => $fieldDef) {
 				$idSet[] = $row[$fieldName];

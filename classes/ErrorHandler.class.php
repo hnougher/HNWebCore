@@ -57,7 +57,7 @@ class ErrorHandler
 		$fatals = array(E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR);
 		if (self::$processErrors || in_array($errNo, $fatals)) {
 			// Ignore notice in PEAR
-			if (in_array($errNo, $fatals) && !preg_match('|[\\/]pear[\\/]|i', $errFile)) {
+			if (!preg_match('|[\\\/]pear[\\\/]|i', $errFile) || in_array($errNo, $fatals)) {
 				echo self::$errorType[$errNo]. ': ';
 				echo "$errStr in '$errFile' on line $errLine.\n";
 

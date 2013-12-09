@@ -34,7 +34,34 @@ class HNDB
 
 	private static function checkCustomDSN($dsn) {
 		$dsn = self::MDB2()->parseDSN($dsn);
-		if (in_array($dsn['phptype'], array('hnmysqli','hnldap')))
+		
+		// hnoci8_ldap has initial lookup here
+		if (in_array($dsn['phptype'], array('hnoci8_ldap'))) {
+			$startTime = microtime(true);
+			$ds = ldap_connect($dsn['hostspec'], $dsn['port']); // Connect to ldap
+			$r = ldap_bind($ds); // Bind to ldap
+			$sr = ldap_search($ds, $ds, 'cn='.$dsn['database']); // Run query
+			$info = ldap_get_entries($ds, $sr); // Get entries
+			ldap_close($ds); // Close connection
+
+			if (!isset($info[0]["orclnetdescstring"][0]))
+				throw new Exception('Cannot reparse hnoci8_ldap connection');
+			$dsn['hostspec'] = $info[0]["orclnetdescstring"][0]; // Extract db connect string from ldap search result array
+			$dsn['phptype'] = $dsn['dbsyntax'] = 'hnoci8';
+			$dsn['port'] = null;
+			$dsn['database'] = null;
+			
+			if (empty(HNDB::$runStats['oci8_pre'])) {
+				HNDB::$runStats['oci8_pre'] = array(
+					'total_calls' => 0,
+					'look_uptime' => 0,
+				);
+			}
+			HNDB::$runStats['oci8_pre']['total_calls']++;
+			HNDB::$runStats['oci8_pre']['look_uptime'] += microtime(true) - $startTime;
+		}
+		
+		if (in_array($dsn['phptype'], array('hnmysqli','hnoci8','hnldap')))
 			require_once CLASS_PATH . '/HNDB.' . $dsn['phptype'] . '.class.php';
 		return $dsn;
 	}
@@ -46,7 +73,7 @@ class HNDB
 		
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->factory($dsn, $options);
-		if (PEAR::isError($result))
+		if (HNDB::MDB2()->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
 		return $result;
 	}
@@ -58,7 +85,7 @@ class HNDB
 		
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->connect($dsn, $options);
-		if (PEAR::isError($result))
+		if (HNDB::MDB2()->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
 		return $result;
 	}
@@ -70,7 +97,7 @@ class HNDB
 		
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->singleton($dsn, $options);
-		if (PEAR::isError($result))
+		if (HNDB::MDB2()->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
 		return $result;
 	}

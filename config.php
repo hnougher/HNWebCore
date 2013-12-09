@@ -30,8 +30,12 @@ $config = array(
 	'SERVER_EMAIL'		=> '', // The server will send emails from this email
 	'ADMIN_EMAILS'		=> '', // (comma seperated) Emails about system errors will be sent here
 
-	// @see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
 	// Default DB Connection
+	// @see http://pear.php.net/manual/en/package.database.mdb2.intro-dsn.php
+	// Other custom connectors
+	// hnmysqli:  hnoci8:
+	// hnoci8_ldap://<db_user>:<db_pass>@<ldap_host>:<ldap_port>/<db>
+	// hnldap://[<user>:<pass>@]<host>/<whatever>?version=3
 	'HNDB_DEFAULT'		=> 'hnmysqli://hnwc:RCWSn2su7MjJFp6F@127.0.0.1/hnwc',
 	'HNDB_LDAP'			=> 'hnldap://ldap.example.com.au/db?version=3',
 	'HNDB_LDAP_LOGIN'	=> 'hnldap://uid=%s,ou=People,dc=example,dc=com,dc=au:%s@ldap.example.com.au/db?version=3',
@@ -50,6 +54,7 @@ $config = array(
 	'CLASS_PATH'		=> BASE_PATH . '/classes',
 	'CRON_PATH'			=> BASE_PATH . '/cron',
 	'DBSTRUCT_PATH'		=> BASE_PATH . '/dbstruct',
+	'FILES_PATH'		=> BASE_PATH . '/files',
 	#'INCLUDE_PATH'		=> array(BASE_PATH . '/PEAR'),
 	'PAGE_PATH'			=> BASE_PATH . '/pages',
 	'TEMPLATE_PATH'		=> BASE_PATH . '/hntpl',

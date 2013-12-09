@@ -8,7 +8,7 @@
  * 
  * @author Hugh Nougher <hughnougher@gmail.com>
  */
-
+ob_start();
 // Lets get started!
 $GLOBALS['ScriptStartTime'] = microtime(1);
 require_once 'config.php';
@@ -98,3 +98,4 @@ class CRON
 // Run It and End
 CRON::initiate();
 printf('Total Script Time: %1.2e sec', microtime(1) - $GLOBALS['ScriptStartTime']);
+ob_end_flush();

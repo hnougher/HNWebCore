@@ -262,7 +262,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return array The field parameters.
 	*/
 	public function getValParam($field) {
-	throw new Exception("NI");
+	throw new Exception('No longer implemented! Please use $OBJ::getTableDef()->fields[$field] instead.');
 		$fields = $this->fieldList->getReadable();
 		return (isset($fields[$field]) ? $fields[$field] : false);
 	}
@@ -348,7 +348,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			foreach (array_keys($this::$tableDef->keys) as $key => $val)
 				$ids[$val] = $this->myId[$key];
 			$result = static::$selectStatement->execute($ids);
-			if (PEAR::isError($result))
+			if (HNDB::MDB2()->isError($result))
 				throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
 			if ($result->numRows() == 1) {
 				$data =& $result->fetchRow(MDB2_FETCHMODE_ASSOC);
@@ -372,7 +372,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Processes the Data into the correct data types and locally store it.
 	*/
 	protected function storeArrayToLocal($dataArray, $oldData = array()) {
-		foreach ($this::$tableDef->fields as $name => $fieldDef) {
+		foreach ($this::$tableDef->fields as $name => &$fieldDef) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
 				$dataArray[$name] = '';
@@ -382,9 +382,10 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$this->myData[$name] = new _OBJPrototype($fieldDef->object, $dataArray[$name]);
 			else
 				$this->myData[$name] = $dataArray[$name];
+			unset($fieldDef);
 		}
 		
-		foreach ($this::$tableDef->subtables as $name => $fieldDef) {
+		foreach ($this::$tableDef->subtables as $name => &$fieldDef) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
 				$dataArray[$name] = '';
@@ -393,6 +394,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$this->myData[$name] = $oldData[$name];
 			else
 				$this->myData[$name] = new _MOBPrototype($fieldDef);
+			unset($fieldDef); // _MOBPrototype takes this as reference so it must be unset
 		}
 	}
 
@@ -431,7 +433,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Prepare fields that are getting changed
 		$fields = array();
 		foreach ($fieldDefs as $fieldName => $fieldDef) {
-			echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
+			#echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
 			if (!empty($fieldDef->object)) {
 				if ($this->myData[$fieldName]->getId() == $this->myChangedData[$fieldName]->getId())
 					continue;
@@ -445,13 +447,21 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			}
 		}
 		
+		// Check that something is going to be saved
+		if (empty($fields)) {
+			// Nothing needs saving so any changed values mean nothing
+			$this->myChangedValues = array();
+			return true;
+		}
+		
 		// Prepare DB connection and statement
 		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
 		$stmt =& $DB->prepareOBJQuery($type, $this::$tableDef, $fields);
 		
+		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
 		$result = $stmt->execute($replacements);
-		if (PEAR::isError($result))
-			throw new Exception('DB operation failed');
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->userinfo : 'DB operation failed');
 		if ($result == 0)
 			throw new Exception('No rows affected by ' .$type);
 		
@@ -498,7 +508,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$stmt =& $DB->prepareOBJQuery('DELETE', $this::$tableDef);
 		
 		$result = $stmt->execute($replacements);
-		if (PEAR::isError($result))
+		if (HNDB::MDB2()->isError($result))
 			throw new Exception('DB operation failed');
 		if ($result == 0)
 			throw new Exception('No rows affected by DELETE');
@@ -635,11 +645,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function offsetSet($field, $value) {
 		if ($this->hasRecord()) {
 			if (!array_key_exists($field, $this::$tableDef->getWriteableFields()))
-				throw new Exception('Attempt to set a non-writeable field "' .$field. '" in existing OBJ');
+				throw new Exception('Attempt to set a non-writeable field "' .$field. '" in existing OBJ of type "' .get_class($this). '"');
 		}
 		else {
 			if (!array_key_exists($field, $this::$tableDef->getInsertableFields()))
-				throw new Exception('Attempt to set a non-insertable field "' .$field. '" in new OBJ');
+				throw new Exception('Attempt to set a non-insertable field "' .$field. '" in new OBJ of type "' .get_class($this). '"');
 		}
 		$fieldDef = $this::$tableDef->fields[$field];
 		
@@ -647,8 +657,9 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (isset($fieldDef->object)) {
 			if (!is_object($value) || !($value instanceof HNOBJBasic))
 				$value = self::loadObject($fieldDef->object, $value);
-			elseif ($value->getTable() != $fieldDef->object)
-				throw new Exception('Attempt to set OBJ of wrong table in link field');
+			elseif (strtoupper(get_class($value)) != strtoupper('OBJ'.$fieldDef->object))
+				throw new Exception(sprintf('Attempt to set OBJ of wrong table in link field. Got %s wanted OBJ%s.',
+					strtoupper(get_class($value)), strtoupper($fieldDef->object)));
 		} elseif ($fieldDef->type == 'byte' && is_array($value)) {
 			if ($value[1] == FLAG_RESET)
 				$value = $this[$field] & ~$value[0];
@@ -967,7 +978,7 @@ class _DefinitionField extends _DefinitionBase
 				throw new Exception('Invalid Field Parameter "' .$key. '"');
 			$this->{$key} =& $val;
 		}
-		if (empty($this->SQL)) $this->SQL = '`T`.`' .$virtName. '`';
+		if (empty($this->SQL)) $this->SQL = '`T`.' .$virtName;
 		$this->setWithTableCopy($TableDef);
 		
 		// Check that objects are setup correctly
@@ -990,7 +1001,7 @@ class _DefinitionField extends _DefinitionBase
 	* Use $table = false to just remove the `T`.
 	*/
 	public function SQLWithTable($table = false) {
-		$table = ($table ? '`' .$table. '`.' : '');
+		$table = ($table ? $table.'.' : '');
 		return str_replace('`T`.', $table, $this->SQL);
 	}
 }
@@ -1012,6 +1023,7 @@ class _DefinitionSubTable extends _DefinitionBase
 			if (!in_array($key, self::$allowedParameters))
 				throw new Exception('Invalid SubTable Parameter "' .$key. '"');
 			$this->{$key} = &$val;
+			unset($val);
 		}
 		
 		// Prove Permissions
@@ -1021,7 +1033,6 @@ class _DefinitionSubTable extends _DefinitionBase
 			return;
 		}
 		
-		if (empty($this->table)) $this->table = $virtName;
 		if (empty($this->localField)) {
 			if (count($TableDef->keys) != 1)
 				throw new Exception('Default localField value requires exactly one key for this table');

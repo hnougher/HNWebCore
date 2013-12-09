@@ -9,29 +9,29 @@
 */
 
 require_once CLASS_PATH. '/HNDB.class.php';
-HNDB::MDB2()->loadClass('MDB2_Driver_mysqli');
+HNDB::MDB2()->loadClass('MDB2_Driver_oci8');
 
 //
 // PLEASE USE HNDB::factory(), HNDB::connect() or HNDB::singleton() to make an instance.
-// This is phptype 'hnmysqli' once this file have been included.
+// This is phptype 'hnoci8' once this file have been included.
 //
 
-/** HNWC Wrapper for MDB2_Driver_mysqli class */
-class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
+/** HNWC Wrapper for MDB2_Driver_oci8 class */
+class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 {
 	public static $runStats;
 	private static $validWhereSigns = array('=','!=','<','>','<=','>=','LIKE');
 
-	/** @see MDB2_Driver_mysqli::__construct */
+	/** @see MDB2_Driver_oci8::__construct */
 	function __construct() {
 		if (!isset(self::$runStats)) {
-			HNDB::$runStats['mysqli'] = array(
+			HNDB::$runStats['oci8'] = array(
 				'total_instances' => 0,
 				'current_instances' => 0,
 				'query_count' => 0,
 				'connect_time' => 0,
 				'query_time' => 0);
-			self::$runStats =& HNDB::$runStats['mysqli'];
+			self::$runStats =& HNDB::$runStats['oci8'];
 		}
 		self::$runStats['total_instances']++;
 		self::$runStats['current_instances']++;
@@ -39,31 +39,31 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		parent::__construct();
 	}
 
-	/** @see MDB2_Driver_mysqli::__construct */
+	/** @see MDB2_Driver_oci8::__construct */
 	function __destruct() {
 		self::$runStats['current_instances']--;
 		parent::__destruct();
 	}
 
-    /** @see MDB2_Driver_mysqli::getDSN */
+    /** @see MDB2_Driver_oci8::getDSN */
 	 function getDSN($type = 'string', $hidepw = false) {
 		$dsn = parent::getDSN($type, $hidepw);
 		if ($type == 'array')
-			$dsn['phptype'] = 'hnmysqli';
+			$dsn['phptype'] = 'hnoci8';
 		return $dsn;
 	 }
 
-    /** @see MDB2_Driver_mysqli::connect */
+    /** @see MDB2_Driver_oci8::connect */
     function connect() {
         $startTime = microtime(true);
-		$result =& parent::connect();
+		$result = parent::connect();
         self::$runStats['connect_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
+            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         return $result;
 	}
 
-    /** @see MDB2_Driver_mysqli::_doQuery */
+    /** @see MDB2_Driver_oci8::_doQuery */
     function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
         self::$runStats['query_count']++;
         $startTime = microtime(true);
@@ -95,8 +95,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		case 'SELECT':
 			foreach ($tableDef->getReadableFields() as $fieldName => $fieldDef) {
 				$SQL = $fieldDef->SQLWithTable();
-				if ($fieldName != substr($SQL, 1, -1))
-					$SQL .= ' AS "' .$fieldName. '"';
+				if ($fieldName != $SQL)
+					$SQL .= ' AS ' .$fieldName. '';
 				$sqlFields[] = $SQL;
 				$returnTypes[] = $fieldDef->type;
 			}
@@ -111,7 +111,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($idFields))
 				throw new Exception('No ID fields in SELECT. Cannot continue.');
 			
-			$SQL = sprintf('SELECT %s FROM `%s` WHERE %s LIMIT 1',
+			$idFields[] = 'ROWNUM=1'; // LIMIT 1
+			$SQL = sprintf('SELECT %s FROM %s WHERE %s',
 				implode(',', $sqlFields), $tableDef->table, implode(' AND ', $idFields));
 			break;
 		
@@ -138,7 +139,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($idFields))
 				throw new Exception('No ID fields in UPDATE. Cannot continue.');
 			
-			$SQL = sprintf('UPDATE `%s` SET %s WHERE %s LIMIT 1',
+			$idFields[] = 'ROWNUM=1'; // LIMIT 1
+			$SQL = sprintf('UPDATE %s SET %s WHERE %s',
 				$tableDef->table, implode(',', $sqlFields), implode(' AND ', $idFields));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
@@ -158,7 +160,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($sqlFields))
 				throw new Exception('No fields to set in INSERT. Cannot continue.');
 			
-			$SQL = sprintf('INSERT INTO `%s` SET %s',
+			$SQL = sprintf('INSERT INTO %s SET %s',
 				$tableDef->table, implode(',', $sqlFields));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
@@ -171,7 +173,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($sqlFields))
 				throw new Exception('No ID fields in DELETE. Cannot continue.');
 			
-			$SQL = sprintf('DELETE FROM `%s` WHERE %s LIMIT 1',
+			$sqlFields[] = 'ROWNUM=1'; // LIMIT 1
+			$SQL = sprintf('DELETE FROM %s WHERE %s',
 				$tableDef->table, implode(' AND ', $sqlFields));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
@@ -193,8 +196,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		$sqlFieldDefs = ($allFields ? $tableDef->getReadableFields() : $tableDef->keys);
 		foreach ($sqlFieldDefs as $fieldName => $fieldDef) {
 			$SQL = $fieldDef->SQLWithTable();
-			if ($fieldName != substr($SQL, 1, -1))
-				$SQL .= ' AS "' .$fieldName. '"';
+			if ($fieldName != $SQL)
+				$SQL .= ' AS ' .$fieldName. '';
 			$sqlFields[] = $SQL;
 			$returnTypes[] = $fieldDef->type;
 		}
@@ -226,10 +229,10 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				$orderFields[] = $fieldDef->SQLWithTable();
 		}
 		
-		$SQL = sprintf('SELECT %s FROM `%s` %s ORDER BY %s',
+		$SQL = sprintf('SELECT %s FROM %s %s ORDER BY %s',
 			implode(',', $sqlFields), $tableDef->table, $where, implode(',', $orderFields));
 		
-#		var_dump($SQL, $replaceTypes, $returnTypes);
+		var_dump($SQL, $replaceTypes, $returnTypes);
 		return $this->prepare($SQL, $replaceTypes, $returnTypes);
 	}
 	
@@ -340,7 +343,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 					if (isset($tableDef->fields[$part->value]))
 						$ret .= $tableDef->fields[$part->value]->SQLWithTable($tableAlias);
 					else
-						$ret .= '"' .$this->escape($part->value). '"';
+						$ret .= "'" .$this->escape($part->value). "'";
 				}
 			} elseif (is_array($part)) {
 				$ret .= '(' .$this->wherePrinter($part). ')';

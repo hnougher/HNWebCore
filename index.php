@@ -68,7 +68,7 @@ function isFalse($condition, $message) {
 // AJAX stored query functions
 /**
 * This function is used to store a query in $_SESSION.
-* It returns a basicallly random code for use within JS.
+* It returns a basically random code for use within JS.
 * NOTE: This function will get *very* slow when lots are stored.
 * NOTE: Stored querys get cleared when session ends (logout or timeout).
 *
@@ -350,12 +350,11 @@ class Loader
 		$password = $_POST['login_pass'];
 		unset($_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass']);
 		
-		if (!preg_match('/^(.*)@(.*)$/', $username, $matches)) {
-			require_once CLASS_PATH.'/OBJ.ldapuser.class.php';
-			$DBUser = OBJLDAPUser::Authenticate($username, $password);
-		} else {
+		try {
 			require_once CLASS_PATH.'/OBJ.user.class.php';
 			$DBUser = OBJUser::Authenticate($username, $password);
+		} catch (Exception $e) {
+			error(str_replace("\n", '<br/>', $e));
 		}
 		
 		if (!$DBUser)

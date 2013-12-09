@@ -57,7 +57,7 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
         $startTime = microtime(true);
 		$result =& parent::connect();
         self::$runStats['connect_time'] += microtime(true) - $startTime;
-        if (PEAR::isError($result)) {
+        if (HNDB::MDB2()->isError($result)) {
             require_once 'PEAR/Exception.php';
             throw new PEAR_Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
         }
@@ -70,7 +70,7 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
         $startTime = microtime(true);
 		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
         self::$runStats['query_time'] += microtime(true) - $startTime;
-        if (PEAR::isError($result)) {
+        if (HNDB::MDB2()->isError($result)) {
             require_once 'PEAR/Exception.php';
             throw new PEAR_Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
         }
@@ -91,14 +91,13 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
         if ($type == 'SELECT') {
             $attributes = array();
             foreach ($tableDef->getReadableFields() as $fieldName => $fieldDef) {
-                $attributes[] = str_replace(array('`T`.`','`'), '', $fieldDef->SQL);
+                $attributes[] = $fieldDef->SQLWithTable();
                 $returnTypes[] = $fieldDef->type;
             }
             
             $idFields = array();
             foreach ($tableDef->keys as $fieldName => $fieldDef) {
-                $field = str_replace(array('`T`.`','`'), '', $fieldDef->SQL);
-                $idFields[] = $field. '=:' .$fieldName;
+                $idFields[] = $fieldDef->SQLWithTable(). '=:' .$fieldName;
                 $replaceTypes[] = $fieldDef->type;
             }
             
@@ -107,7 +106,8 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
             return $this->prepare($query, $replaceTypes, $returnTypes);
         }
         
-        var_dump($filter, $replaceTypes);
+        #var_dump($filter, $replaceTypes);
+        throw new Exception('Not implemented');
     }
 }
 
@@ -190,7 +190,7 @@ class MDB2_Driver_ldap extends MDB2_Driver_Common
         $this->last_query = $query;
         $result = $this->debug($query, 'query', array('is_manip' => $is_manip, 'when' => 'pre'));
         if ($result) {
-            if (PEAR::isError($result)) {
+            if (HNDB::MDB2()->isError($result)) {
                 return $result;
             }
             $query = $result;
@@ -231,7 +231,7 @@ class MDB2_Result_ldap extends MDB2_Result_Common
     function &fetchRow($fetchmode = MDB2_FETCHMODE_DEFAULT, $rownum = null) {
         if (!is_null($rownum)) {
             $seek = $this->seek($rownum);
-            if (PEAR::isError($seek))
+            if (HNDB::MDB2()->isError($seek))
                 return $seek;
         }
         
@@ -322,7 +322,7 @@ class MDB2_Driver_Datatype_ldap extends MDB2_Driver_Datatype_Common
         }
 
         $db =& $this->getDBInstance();
-        if (PEAR::isError($db)) {
+        if (HNDB::MDB2()->isError($db)) {
             return $db;
         }
 

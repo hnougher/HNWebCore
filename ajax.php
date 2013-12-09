@@ -67,7 +67,7 @@ foreach ($queryQueue as $queryNumer => $QUERY) {
 	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
 	$result =& $stmt->execute($QUERY['param']);
 	if (PEAR::isError($result))
-		die('Error: Statement failed to execute.');
+		die('Error: Statement failed to execute.' . (DEBUG ? $result->getUserInfo() : $result->getMessage()));
 	
 	if ($queryNumer > 0)
 		echo ',';
