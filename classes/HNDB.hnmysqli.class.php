@@ -56,7 +56,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
     /** @see MDB2_Driver_mysqli::connect */
     function connect() {
         $startTime = microtime(true);
-		$result =& parent::connect();
+		$result = parent::connect();
         self::$runStats['connect_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
@@ -191,6 +191,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		// Fields to collect
 		$sqlFields = array();
 		$sqlFieldDefs = ($allFields ? $tableDef->getReadableFields() : $tableDef->keys);
+		
 		foreach ($sqlFieldDefs as $fieldName => $fieldDef) {
 			$SQL = $fieldDef->SQLWithTable();
 			if ($fieldName != substr($SQL, 1, -1))
@@ -229,8 +230,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		$SQL = sprintf('SELECT %s FROM `%s` %s ORDER BY %s',
 			implode(',', $sqlFields), $tableDef->table, $where, implode(',', $orderFields));
 		
-#		var_dump($SQL, $replaceTypes, $returnTypes);
-		return $this->prepare($SQL, $replaceTypes, $returnTypes);
+#		var_dump($SQL, $returnTypes);
+		return $this->prepare($SQL, $returnTypes);
 	}
 	
 	public function makeAutoQuery($autoQuery) {
@@ -349,7 +350,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			} elseif ($part == WHERE_OR) {
 				$ret .= ' OR ';
 			} else {
-				throw new Eception ('This cannot be happening! Its not possible!');
+				throw new Exception ('This cannot be happening! Its not possible!');
 			}
 		}
 		return $ret;

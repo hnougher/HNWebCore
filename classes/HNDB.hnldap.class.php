@@ -55,7 +55,7 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
     /** @see MDB2_Driver_mysqli::connect */
     function connect() {
         $startTime = microtime(true);
-		$result =& parent::connect();
+		$result = parent::connect();
         self::$runStats['connect_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result)) {
             require_once 'PEAR/Exception.php';
@@ -160,7 +160,7 @@ class MDB2_Driver_ldap extends MDB2_Driver_Common
         }
         
         $connection = ldap_connect($this->dsn['hostspec'], empty($this->dsn['port']) ? 389 : $this->dsn['port']);
-        if ($connection === false) {
+        if ($connection == false) {
             return $this->raiseError(MDB2_ERROR_CONNECT_FAILED, null, null,
                 'Cannot Connect to LDAP Host: ' .$this->dsn['hostspec'], __FUNCTION__);
         }
@@ -182,7 +182,8 @@ class MDB2_Driver_ldap extends MDB2_Driver_Common
     }
     
     function disconnect($force = true) {
-        ldap_close($this->connection);
+        if ($this->connection != false)
+            ldap_close($this->connection);
         return parent::disconnect($force);
     }
 
@@ -277,7 +278,7 @@ class MDB2_Result_ldap extends MDB2_Result_Common
             if ($object_class == 'stdClass') {
                 $row = (object) $row;
             } else {
-                $row = &new $object_class($row);
+                $row = new $object_class($row);
             }
         }
         ++$this->rownum;
