@@ -66,7 +66,7 @@ foreach ($queryQueue as $queryNumer => $QUERY) {
 	$DB =& HNDB::singleton(constant('HNDB_' .$QUERY['def'][0]));
 	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
 	$result =& $stmt->execute($QUERY['param']);
-	if (PEAR::isError($result))
+	if (HNDB::MDB2()->isError($result))
 		die('Error: Statement failed to execute.' . (DEBUG ? $result->getUserInfo() : $result->getMessage()));
 	
 	if ($queryNumer > 0)
@@ -75,7 +75,7 @@ foreach ($queryQueue as $queryNumer => $QUERY) {
 		// Return result data
 		echo '[';
 		$rowNum = 0;
-		while (($row = $result->fetchRow()) && !PEAR::isError($row)) {
+		while (($row = $result->fetchRow()) && !HNDB::MDB2()->isError($row)) {
 			if ($rowNum)
 				echo ',';
 			echo json_encode($row);
