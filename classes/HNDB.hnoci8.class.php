@@ -253,7 +253,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		// Where filter
 		$where = array();
 		foreach ($autoQuery->getTableList() as $AQT) {
-			$wherePart = $this->wherePrinter($AQT->getTableDef(), $AQT->getWhereList()->get(), $AQT->getTableAlias());
+			$wherePart = $this->wherePrinter($AQT->getTableDef(), $AQT->getWhereList()->get(), '"'.$AQT->getTableAlias().'"');
 			if (!empty($wherePart))
 				$where[] = $wherePart;
 		}
@@ -262,7 +262,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		$groups = $this->AQOrderPrinter($autoQuery, 'group');
 		$orders = $this->AQOrderPrinter($autoQuery, 'order');
 		
-		$SQL = sprintf('SELECT %s FROM %s%s%s%s LIMIT ?,?',
+		$SQL = sprintf('SELECT * FROM (SELECT %s FROM %s%s%s%s) WHERE ROWNUM>:limitstart AND ROWNUM<=(:limitstart + :limitcount)',
 			$selectedFields,
 			implode(',', $fromClauseBlocks),
 			(empty($where) ? '' : ' WHERE ' .implode(' AND ', $where)),
@@ -275,8 +275,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 	
 	public function prepareAutoQuery($autoQuery) {
 		$SQL = $this->makeAutoQuery($autoQuery);
-		$replaceTypes = array('integer', 'integer');
-		return $this->prepare($SQL, $replaceTypes);
+		return $this->prepare($SQL);
 	}
 	
 	private function AQFieldPrinter($autoQuery) {
@@ -284,7 +283,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		foreach ($autoQuery->getTableList() as $AQT) {
 			foreach ($AQT->getFieldList()->get() as $fieldPart) {
 				if ($fieldPart->field instanceof _DefinitionField) {
-					$SQL = $fieldPart->field->SQLWithTable($AQT->getTableAlias());
+					$SQL = $fieldPart->field->SQLWithTable('"'.$AQT->getTableAlias().'"');
 					if ($fieldPart->field->virtName != substr($SQL, 1, -1))
 						$SQL .= ' AS "' .$fieldPart->field->virtName. '"';
 				} else {
@@ -299,9 +298,9 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 	private function AQFromPrinter($AQT) {
 		$linkDefs = $AQT->getLinkDefs();
 		$block = (empty($linkDefs) ? '' : '(');
-		$block .= '`'.$AQT->getTableDef()->table.'`';
+		$block .= $AQT->getTableDef()->table;
 		if ($AQT->getTableDef()->table != $AQT->getTableAlias())
-			$block .= ' AS "'.$AQT->getTableAlias().'"';
+			$block .= ' "'.$AQT->getTableAlias().'"';
 		foreach ($linkDefs as $linkDef) {
 			$block .= ' '.$linkDef[0].' '; // JOIN
 			$block .= $this->AQFromPrinter($linkDef[2]); // remote table and joins
