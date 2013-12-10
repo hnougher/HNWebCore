@@ -245,7 +245,7 @@ define('ORDER_ASC', 1);
 define('ORDER_DESC', 2);
 class OrderList extends FieldList
 {
-	public function __construct($proto) {
+	public function __construct() {
 		$args = func_get_args();
 		if (count($args))
 			$this->process($args);
