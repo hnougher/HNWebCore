@@ -27,7 +27,7 @@ class AutoQuery
 		elseif ($AQT->getTableDef()->connection != $this->connection)
 			throw new Exception('AutoQuery cannot overcome connection boundaries');
 		$this->tableList[$alias] = $AQT;
-		if (!$IsJoined)
+		if (!$_IsJoined)
 			$this->tableListUnique[$alias] = $AQT;
 		return $AQT;
 	}
@@ -155,7 +155,7 @@ class AutoQueryTable
 	* Appends a WherePart to the WhereList.
 	* @see WhereList::append($proto)
 	* @see WherePart::__construct($field, $sign, $value, $dontEscape = false)
-	* @example addWhere(new WherePart(...), WhereList::WAND, new WherePart(...))
+	* @example addWhere(new WherePart(...), WHERE_AND, new WherePart(...))
 	*/
 	public function addWhere($proto) {
 		if (!is_array($proto))
