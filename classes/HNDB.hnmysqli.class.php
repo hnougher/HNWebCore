@@ -260,7 +260,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		$groups = $this->AQOrderPrinter($autoQuery, 'group');
 		$orders = $this->AQOrderPrinter($autoQuery, 'order');
 		
-		$SQL = sprintf('SELECT %s FROM %s%s%s%s LIMIT ?,?',
+		$SQL = sprintf('SELECT %s FROM %s%s%s%s LIMIT :limitstart,:limitcount',
 			$selectedFields,
 			implode(',', $fromClauseBlocks),
 			(empty($where) ? '' : ' WHERE ' .implode(' AND ', $where)),

@@ -52,9 +52,15 @@ class OBJUser extends HNOBJBasic
 		
 		$password = hash(LOGIN_HASHALG, LOGIN_PRESALT.$password.LOGIN_POSTSALT);
 		
-		$DB =& HNDB::singleton(constant(static::$tableDef->connection));
-		$stmt = $DB->prepare('SELECT `userid` FROM `user` WHERE `username`=? AND `password`=? LIMIT 1');
-		$result = $stmt->execute(array($username, $password));
+		$aq = new AutoQuery();
+		$table = $aq->addTable('user');
+		$table->addField('userid');
+		$table->addWhere(new WherePart('username','=',':username',true), WHERE_AND, new WherePart('password','=',':password',true));
+		$stmt = $aq->prepareSQL();
+		$result = $stmt->execute(array('username'=>$username, 'password'=>$password, 'limitstart'=>0, 'limitcount'=>1));
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		
 		if ($result->numRows() != 1 || HNDB::MDB2()->isError($row = $result->fetchRow())) {
 			$result->free();
 			error('Incorrect username or password entered.');
