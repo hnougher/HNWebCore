@@ -179,9 +179,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	 * Sets the parent object for this object.
-	 * Basicially this is the only known reverse link that gives us troubles.
+	 * Basically this is the only known reverse link that gives us troubles.
 	 */
 	public function set_reverse_link($field, $obj) {
+		// Assumed this check is already done in its only user HNMOBBasic::__construct()
+		/*if (empty($this->getTableDef()->fields[$field]) || empty($this->getTableDef()->fields[$field]->object))
+			throw new Exception('Reverse link is not an OBJ field');*/
 		$this->myData[$field] = $obj;
 		$this->myParentObject = $obj;
 	}
@@ -433,30 +436,33 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Prepare fields that are getting changed
 		$fields = array();
 		foreach ($fieldDefs as $fieldName => $fieldDef) {
-			#echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
-			if (!empty($fieldDef->object)) {
-				if ($this->myData[$fieldName]->getId() == $this->myChangedData[$fieldName]->getId())
+			if (!isset($this->myChangedData[$fieldName])) {
+				continue;
+			} elseif (!empty($fieldDef->object)) {
+				if ($type == 'UPDATE' && $this->myData[$fieldName]->getId() == $this->myChangedData[$fieldName]->getId()) {
+					#echo 'For ' . $fieldName . ' "' . $this->myData[$fieldName]->getId() . '" == "' . $this->myChangedData[$fieldName]->getId() . '"';
 					continue;
+				}
 				$replacements[$fieldName] = $this->myChangedData[$fieldName]->getId();
 				$fields[] = $fieldName;
-			} elseif (!isset($this->myChangedData[$fieldName])) {
-				continue;
 			} else {
 				$replacements[$fieldName] = $this->myChangedData[$fieldName];
 				$fields[] = $fieldName;
 			}
+			
+			//echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
 		}
 		
 		// Check that something is going to be saved
 		if (empty($fields)) {
 			// Nothing needs saving so any changed values mean nothing
-			$this->myChangedValues = array();
+			$this->myChangedData = array();
 			return true;
 		}
 		
 		// Prepare DB connection and statement
 		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
-		$stmt =& $DB->prepareOBJQuery($type, $this::$tableDef, $fields);
+		$stmt = $DB->prepareOBJQuery($type, $this::$tableDef, $fields);
 		
 		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
 		$result = $stmt->execute($replacements);
@@ -484,7 +490,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// YAY! we are done! Now to reload and clean up
 		$stmt->free();
 		$this->load();
-		$this->myChangedValues = array();
+		$this->myChangedData = array();
 		return true;
 	}
 
@@ -667,7 +673,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				$value = $this[$field] | $value[0];
 		}
 		
-		// Validate the value if nessessary
+		// Validate the value if necessary
 		if (isset($fieldDef->values)) {
 			if (!in_array($value, $fieldDef->values))
 				throw new Exception('Invalid value being set for ' .$field);
@@ -680,8 +686,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (isset($this->myData[$field]) && $this->myData[$field] == $value) {
 			// Reset changed data on this field since its back to the saved value
 			unset($this->myChangedData[$field]);
-		}
-		else {
+		} else {
+			#echo "Changing $field from " .print_r($this->myData[$field],1). " to " .print_r($value,1). "\n";
 			$this->myChangedData[$field] = $value;
 		}
 		return true;
@@ -1094,7 +1100,7 @@ class _OBJPrototype extends _MOBOBJPrototype
 	public $data; // OPTIONAL Prefill data that the OBJ is to be loaded with
 	public function __construct($class, $myId, $data = null) {
 		$this->class = $class;
-		$this->myId = $myId;
+		$this->myId = (array) $myId;
 		if ($data !== null)
 			$this->data = $data;
 		self::$totalCreated++;

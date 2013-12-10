@@ -86,8 +86,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* @param string $table The table that these new objects are to come from.
-	* @param string $field The id field name of calling table. Use 'NONE' if you just want everything in the table.
-	* @param integer $id The id value that the search is based around.
+	* @param string $field The id field name of the $table. Use 'NONE' if you just want everything in the table.
+	* @param integer $id The id value that the search is based around in the $field.
 	* @param HNOBJBasic $parent The parent object if there is one. Used for saving some of the object loading repetition.
 	* @param boolean $loadNow If you set this to true then the objects will be loaded now.
 	*/
@@ -99,7 +99,14 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (!class_exists($ClassName))
 			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
 		$this->tableDef =& $ClassName::getTableDef();
+		$readableFields = $this->tableDef->getReadableFields();
 		
+		if (is_object($id) || is_resource($id))
+			throw new Exception('ID cannot be an object or resource');
+		if ($field != 'NONE' && empty($readableFields[$field]))
+			throw new Exception('Field does not exist or is unreadable');
+		if (!empty($parent) && (empty($readableFields[$field]->object) || strtolower(get_class($parent)) != strtolower('OBJ'.$readableFields[$field]->object)))
+			throw new Exception('Parent is not of correct type for the field being linked to');
 		$this->parentIdField = $field;
 		$this->parentId = $id;
 		$this->parentObj = $parent;
@@ -152,7 +159,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		$newObj = HNOBJBasic::loadObject($this->tableDef->table, 0);
 		
 		if ($this->parentIdField != 'NONE') {
-			$newObj[$this->parentIdField] = $this->parentObj;
+			$newObj[$this->parentIdField] = $this->parentObj; // So it saves in HNOBJBasic
 			$newObj->set_reverse_link($this->parentIdField, $this->parentObj);
 		}
 		
@@ -197,10 +204,10 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		$DB =& HNDB::singleton(constant($this->tableDef->connection));
 		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadChildren, $whereList, $orderParts);
 		if (HNDB::MDB2()->isError($stmt))
-			throw new Exception('Statement is invalid!');
+			throw new Exception(DEBUG ? $stmt->userinfo : 'Statement is invalid!');
 		$result = $stmt->execute();
 		if (HNDB::MDB2()->isError($result))
-			throw new Exception('Result is invalid!');
+			throw new Exception(DEBUG ? $result->userinfo : 'Result is invalid!');
 		
 		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !HNDB::MDB2()->isError($row)) {
 			$idSet = array();
