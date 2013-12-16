@@ -29,8 +29,12 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 				'total_instances' => 0,
 				'current_instances' => 0,
 				'query_count' => 0,
+				'stmt_prep_count' => 0,
+				'stmt_exec_count' => 0,
 				'connect_time' => 0,
-				'query_time' => 0);
+				'query_time' => 0,
+				'stmt_prep_time' => 0,
+				'stmt_exec_time' => 0);
 			self::$runStats =& HNDB::$runStats['oci8'];
 		}
 		self::$runStats['total_instances']++;
@@ -61,18 +65,18 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         return $result;
-	}
+    }
 
     /** @see MDB2_Driver_oci8::_doQuery */
     function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
         self::$runStats['query_count']++;
         $startTime = microtime(true);
-		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
+        $result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
         self::$runStats['query_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         return $result;
-	}
+    }
 
 	/**
 	* This function prepares SQL statements using the table definitions created by OBJs.
@@ -152,7 +156,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 				if (($fieldsIndex = array_search($fieldName, $fields)) === false)
 					continue;
 				unset($fields[$fieldsIndex]);
-				$sqlFields[] = $fieldDef->SQLWithTable(). '=:' .$fieldName;
+				$sqlFields[$fieldDef->SQLWithTable()] = ':'.$fieldName;
 				$returnTypes[] = $fieldDef->type;
 			}
 			if (!empty($fields))
@@ -160,8 +164,8 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 			if (empty($sqlFields))
 				throw new Exception('No fields to set in INSERT. Cannot continue.');
 			
-			$SQL = sprintf('INSERT INTO %s SET %s',
-				$tableDef->table, implode(',', $sqlFields));
+			$SQL = sprintf('INSERT INTO %s (%s) VALUES (%s)',
+				$tableDef->table, implode(',', array_keys($sqlFields)), implode(',', array_values($sqlFields)));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
 		
@@ -232,8 +236,8 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		$SQL = sprintf('SELECT %s FROM %s %s ORDER BY %s',
 			implode(',', $sqlFields), $tableDef->table, $where, implode(',', $orderFields));
 		
-		var_dump($SQL, $replaceTypes, $returnTypes);
-		return $this->prepare($SQL, $replaceTypes, $returnTypes);
+		#var_dump($SQL, $returnTypes);
+		return $this->prepare($SQL, $returnTypes);
 	}
 	
 	public function makeAutoQuery($autoQuery) {

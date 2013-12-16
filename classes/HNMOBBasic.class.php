@@ -156,7 +156,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		if (!$this->checkLoaded(true))
 			return false;
 		
-		$newObj = HNOBJBasic::loadObject($this->tableDef->table, 0);
+		$newObj = HNOBJBasic::loadObject($this->OBJName, 0);
 		
 		if ($this->parentIdField != 'NONE') {
 			$newObj[$this->parentIdField] = $this->parentObj; // So it saves in HNOBJBasic

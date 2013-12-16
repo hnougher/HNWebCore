@@ -336,11 +336,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->loadedWithTableDef = $this::$tableDef; // Copy of object not variable slot
 		
 		// If not perpared already make the static select statement
-		if (empty(static::$selectStatement)) {
+#		if (empty(static::$selectStatement)) {
+# Major optimisation ignored here because binding fails for unknown reasons
 			$DB =& HNDB::singleton(constant(static::$tableDef->connection));
 			static::$selectStatement = $DB->prepareOBJQuery('SELECT', static::$tableDef);
 			unset($DB);
-		}
+#		}
 		
 		// If there is just one key and that key is zero then there is assumed no record to load
 		if (count($this->myId) == 1 && $this->myId[0] === 0) {
@@ -350,6 +351,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			$ids = array();
 			foreach (array_keys($this::$tableDef->keys) as $key => $val)
 				$ids[$val] = $this->myId[$key];
+			
+			#var_dump(static::$selectStatement->query, static::$selectStatement->positions, static::$selectStatement->values, $ids);
 			$result = static::$selectStatement->execute($ids);
 			if (HNDB::MDB2()->isError($result))
 				throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
@@ -467,13 +470,13 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
 		$result = $stmt->execute($replacements);
 		if (HNDB::MDB2()->isError($result))
-			throw new Exception(DEBUG ? $result->userinfo : 'DB operation failed');
+			throw new Exception(DEBUG ? $result->getUserInfo() : 'DB operation failed');
 		if ($result == 0)
 			throw new Exception('No rows affected by ' .$type);
 		
 		// Update my ID values
 		if ($type == 'INSERT' && $this::$tableDef->hasAutoId) {
-			$this->myId[0] = $DB->lastInsertID();
+			$this->myId[0] = $DB->lastInsertID($this::$tableDef->table);
 		} else {
 			$keyId = 0;
 			foreach ($this::$tableDef->keys AS $fieldName => $fieldDef) {
@@ -569,20 +572,20 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function __toString() {
 		$return = '';
 		try {
-		foreach ($this AS $field => $value) {
-			$return .= $field. ' => ';
-			if (is_object($value)) {
-				$tmpClsName = 'HNOBJBasic';
-				if ($value instanceof $tmpClsName)
-					$return .= strtoupper($value->getTable()). ' { ID ' .$value->getId(). ' }';
-				else
-					$return .= $value;
+			foreach ($this AS $field => $value) {
+				$return .= $field. ' => ';
+				if (is_object($value)) {
+					$tmpClsName = 'HNOBJBasic';
+					if ($value instanceof $tmpClsName)
+						$return .= strtoupper($value->getTable()). ' { ID ' .$value->getId(). ' }';
+					else
+						$return .= $value;
+				}
+				else {
+					$return .= var_export($value, 1);
+				}
+				$return .= "\n";
 			}
-			else {
-				$return .= var_export($value, 1);
-			}
-			$return .= "\n";
-		}
 		} catch (Exception $e) {
 			$return = 'Exception: ' .$e->getMessage() . ' ' . $e->getTraceAsString();
 		}

@@ -14,6 +14,10 @@
 
 class HNDB
 {
+	const DATE_FORMAT = 'Y-m-d';
+	const TIME_FORMAT = 'H:i:s';
+	const DATETIME_FORMAT = 'Y-m-d H:i:s';
+
 	/**
 	* This array contains child arrays which hold stats from a DB class.
 	* The structure looks like "'mysqli' => array(<runCount>, <runTime>)".
@@ -26,8 +30,13 @@ class HNDB
 	private static $MDB2;
 	public static function MDB2() {
 		if (!isset(self::$MDB2)) {
+			HNDB::$runStats['mdb2'] = array();
+			
+			$startTime = microtime(true);
 			require_once 'MDB2.php';
+			require_once 'PEAR/Exception.php';
 			self::$MDB2 = new MDB2();
+			HNDB::$runStats['mdb2']['init'] = microtime(true) - $startTime;
 		}
 		return self::$MDB2;
 	}
@@ -37,13 +46,29 @@ class HNDB
 		
 		// hnoci8_ldap has initial lookup here
 		if (in_array($dsn['phptype'], array('hnoci8_ldap'))) {
-			$startTime = microtime(true);
-			$ds = ldap_connect($dsn['hostspec'], $dsn['port']); // Connect to ldap
-			$r = ldap_bind($ds); // Bind to ldap
-			$sr = ldap_search($ds, $ds, 'cn='.$dsn['database']); // Run query
-			$info = ldap_get_entries($ds, $sr); // Get entries
-			ldap_close($ds); // Close connection
+			// Try cache
+			if (empty($_SESSION['HNDB_HNOCI8_LDAP']))
+				$_SESSION['HNDB_HNOCI8_LDAP'] = array();
+			if (empty($_SESSION['HNDB_HNOCI8_LDAP'][implode('#',$dsn)])) {
+				$startTime = microtime(true);
+				
+				$ds = ldap_connect($dsn['hostspec'], $dsn['port']); // Connect to ldap
+				$r = ldap_bind($ds); // Bind to ldap
+				$sr = ldap_search($ds, $ds, 'cn='.$dsn['database']); // Run query
+				$_SESSION['HNDB_HNOCI8_LDAP'][implode('#',$dsn)] = ldap_get_entries($ds, $sr); // Get entries
+				ldap_close($ds); // Close connection
+				
+				if (empty(HNDB::$runStats['oci8_pre'])) {
+					HNDB::$runStats['oci8_pre'] = array(
+						'total_calls' => 0,
+						'look_uptime' => 0,
+					);
+				}
+				HNDB::$runStats['oci8_pre']['total_calls']++;
+				HNDB::$runStats['oci8_pre']['look_uptime'] += microtime(true) - $startTime;
+			}
 
+			$info = $_SESSION['HNDB_HNOCI8_LDAP'][implode('#',$dsn)];
 			if (!isset($info[0]["orclnetdescstring"][0]))
 				throw new Exception('Cannot reparse hnoci8_ldap connection');
 			$dsn['hostspec'] = $info[0]["orclnetdescstring"][0]; // Extract db connect string from ldap search result array
@@ -51,14 +76,6 @@ class HNDB
 			$dsn['port'] = null;
 			$dsn['database'] = null;
 			
-			if (empty(HNDB::$runStats['oci8_pre'])) {
-				HNDB::$runStats['oci8_pre'] = array(
-					'total_calls' => 0,
-					'look_uptime' => 0,
-				);
-			}
-			HNDB::$runStats['oci8_pre']['total_calls']++;
-			HNDB::$runStats['oci8_pre']['look_uptime'] += microtime(true) - $startTime;
 		}
 		
 		if (in_array($dsn['phptype'], array('hnmysqli','hnoci8','hnldap')))
@@ -70,11 +87,14 @@ class HNDB
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
 		$options['persistent'] = true;
+		$MDB2 =& HNDB::MDB2();
 		
+		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->factory($dsn, $options);
-		if (HNDB::MDB2()->isError($result))
+		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
+		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 
@@ -82,11 +102,14 @@ class HNDB
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
 		$options['persistent'] = true;
+		$MDB2 = HNDB::MDB2();
 		
+		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->connect($dsn, $options);
-		if (HNDB::MDB2()->isError($result))
+		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
+		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 
@@ -94,11 +117,14 @@ class HNDB
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
 		$options['persistent'] = true;
+		$MDB2 = HNDB::MDB2();
 		
+		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->singleton($dsn, $options);
-		if (HNDB::MDB2()->isError($result))
+		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
+		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 
