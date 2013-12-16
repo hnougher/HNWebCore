@@ -41,6 +41,9 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		self::$runStats['current_instances']++;
 		
 		parent::__construct();
+		
+		// We use _pk for sequences
+		$this->options['seqname_format'] = '%s_pk';
 	}
 
 	/** @see MDB2_Driver_oci8::__construct */
@@ -60,7 +63,8 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
     /** @see MDB2_Driver_oci8::connect */
     function connect() {
         $startTime = microtime(true);
-		$result = parent::connect();
+        $this->phptype = 'oci8';
+        $result = parent::connect();
         self::$runStats['connect_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
@@ -75,6 +79,20 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
         self::$runStats['query_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+        return $result;
+    }
+
+    /** @see MDB2_Driver_oci8::prepare */
+    function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
+        $oldType = $this->phptype;
+        $this->phptype = 'hnoci8';
+        
+        self::$runStats['stmt_prep_count']++;
+        $startTime = microtime(true);
+        $result =& parent::prepare($query, $types, $result_types, $lobs);
+        self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
+        
+        $this->phptype = $oldType;
         return $result;
     }
 
@@ -360,4 +378,21 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		}
 		return $ret;
 	}
+}
+
+class MDB2_Statement_hnoci8 extends MDB2_Statement_oci8
+{
+    /*function __construct(&$db, &$statement, $positions, $query, $types, $result_types, $is_manip = false, $limit = null, $offset = null) {
+        $db->phpType = 'oci8';
+        parent::__construct($db, $statement, $positions, $query, $types, $result_types, $is_manip, $limit, $offset);
+    }*/
+
+    /** @see MDB2_Statement_oci8::_execute */
+    function &_execute($result_class = true, $result_wrap_class = false) {
+        MDB2_Driver_hnoci8::$runStats['stmt_exec_count']++;
+        $startTime = microtime(true);
+        $result =& parent::_execute($result_class, $result_wrap_class);
+        MDB2_Driver_hnoci8::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
+        return $result;
+    }
 }
