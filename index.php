@@ -210,7 +210,7 @@ class Loader
 			$HNTPL->output();
 
 			if (STATS)
-				printf('<span class="screenOnly">Total Script Time: %1.2e sec</span>', microtime(1) - $GLOBALS['ScriptStartTime']);
+				printf('<span class="screenOnly">Total Script Time: %1.4f sec</span>', microtime(1) - $GLOBALS['ScriptStartTime']);
 		}
 		
 		// Check the uo has not changed
@@ -235,7 +235,7 @@ class Loader
 	public static function get_stats() {
 		$OBJStats = HNOBJBasic::getObjectCounts();
 		$MOBStats = HNMOBBasic::getObjectCounts();
-		$out = sprintf("<hr/><b>User Roles at Start:</b> %s\n<b>Pre Output Time:</b> %1.2e sec\n<b>Memory Used At End, Peak:</b> %01.1f MB, %01.1f MB",
+		$out = sprintf("<hr/><b>User Roles at Start:</b> %s\n<b>Pre Output Time:</b> %1.4f sec\n<b>Memory Used At End, Peak:</b> %01.1f MB, %01.1f MB",
 			(isset($GLOBALS['UserRolesAtStart']) ? implode(', ', array_keys($GLOBALS['UserRolesAtStart'])) : 'all'),
 			microtime(1) - $GLOBALS['ScriptStartTime'],
 			memory_get_usage() / 1024 / 1024,
@@ -245,7 +245,7 @@ class Loader
 		foreach (HNDB::$runStats as $type => $stats) {
 			$out .= "\n<b>" .$type. "</b>";
 			foreach ($stats as $key => $val) {
-				$out .= sprintf("\n\t<b>%s</b>: %1.3" .(is_int($val) ? 'd' : 'f sec'),
+				$out .= sprintf("\n\t<b>%s</b>: %1.4" .(is_int($val) ? 'd' : 'f sec'),
 					$key, $val);
 			}
 		}
