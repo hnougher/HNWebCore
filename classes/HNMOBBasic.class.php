@@ -250,7 +250,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->isLoaded = false;
 		foreach ($this->objectList AS $obj) {
 			if ($obj instanceof HNOBJBasic)
-				$obj->clean();
+				$obj->clean($this->parentObj);
 		}
 		$this->objectList = array();
 	}

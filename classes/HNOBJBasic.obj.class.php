@@ -532,9 +532,9 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	 * Clean up the horrible reverse links.
 	 * OR for now just clean up everything.
 	 */
-	public function clean() {
-		if ($this->status == self::NOT_LOADED && $this->myParentObject == null)
-			return; // No need to clean if we are not loaded
+	public function clean($callingParent = false) {
+		if ($this->status == self::NOT_LOADED || (!empty($callingParent) && $this->myParentObject !== $callingParent))
+			return;
 		$this->status = self::NOT_LOADED;
 		
 		foreach ($this->myData AS $data) {
@@ -546,7 +546,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				continue;
 
 			if ($data instanceof HNOBJBasic || $data instanceof HNMOBBasic)
-				$data->clean();
+				$data->clean($this);
 		}
 
 		$this->myData = array();
