@@ -352,7 +352,11 @@ class Loader
 		
 		try {
 			require_once CLASS_PATH.'/OBJ.user.class.php';
-			$DBUser = OBJUser::Authenticate($username, $password);
+			$obj = new stdClass();
+			$obj->username = $username;
+			$obj->password = $password;
+			$DBUser = OBJUser::Authenticate($obj);
+			unset($obj);
 		} catch (Exception $e) {
 			error(str_replace("\n", '<br/>', $e));
 		}

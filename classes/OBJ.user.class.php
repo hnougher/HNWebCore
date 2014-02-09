@@ -47,17 +47,20 @@ class OBJUser extends HNOBJBasic
 	protected static $tableDef;
 	protected static $selectStatement;
 	
-	public static function Authenticate($username, $password) {
+	/**
+	* @param $obj This is the username and password passed in an object to help hide it from stack dumps.
+	*/
+	public static function Authenticate($obj) {
 		static::prepareObjectDefs();
 		
-		$password = hash(LOGIN_HASHALG, LOGIN_PRESALT.$password.LOGIN_POSTSALT);
+		$password = hash(LOGIN_HASHALG, LOGIN_PRESALT.$obj->password.LOGIN_POSTSALT);
 		
 		$aq = new AutoQuery();
 		$table = $aq->addTable('user');
 		$table->addField('userid');
 		$table->addWhere(new WherePart('username','=',':username',true), WHERE_AND, new WherePart('password','=',':password',true));
 		$stmt = $aq->prepareSQL();
-		$result = $stmt->execute(array('username'=>$username, 'password'=>$password, 'limitstart'=>0, 'limitcount'=>1));
+		$result = $stmt->execute(array('username'=>$obj->username, 'password'=>$password, 'limitstart'=>0, 'limitcount'=>1));
 		if (HNDB::MDB2()->isError($result))
 			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
 		
