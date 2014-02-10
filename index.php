@@ -358,7 +358,10 @@ class Loader
 			$DBUser = OBJUser::Authenticate($obj);
 			unset($obj);
 		} catch (Exception $e) {
-			error(str_replace("\n", '<br/>', $e));
+			require_once CLASS_PATH. '/HNMail.php';
+			error('An error has occurred while communicating with the authentication servers.');
+			error('Hopefully an administrator has been notified of the problem and will fix it shortly.');
+			ErrorHandler::crashHandler($e);
 		}
 		
 		if (!$DBUser)

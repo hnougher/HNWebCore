@@ -104,14 +104,34 @@ class ErrorHandler
 		return $str;
 	}
 	
-	public static function crashHandler() {
+	public static function crashHandler($e = null) {
 		$ignoreCodes = array(E_STRICT);
-		if (is_null($e = error_get_last()) === false
-			&& !stripos($_SERVER['HTTP_HOST'], 'localhost')
+		if (is_null($e))
+			$e = error_get_last();
+		elseif ($e instanceof Exception)
+			$e = array(
+				'type' => $e->getCode(),
+				'message' => $e->getMessage(),
+				'file' => $e->getFile(),
+				'line' => $e->getLine(),
+			);
+		
+		if (!is_null($e)
+			&& stripos($_SERVER['HTTP_HOST'], 'localhost') === false
 			&& !in_array($e['type'], $ignoreCodes)
 			) {
 			$e['type'] = self::$errorType[$e['type']];
-			mail(ADMIN_EMAILS, 'A Fatality has Occured on ' .SERVER_IDENT, print_r($e, true));
+			
+			if (class_exists('HNMail', false)) {
+				$m = new HNMail();
+				$m->TO(ADMIN_EMAILS);
+				$m->subject('A Fatality has Occurred on ' .SERVER_IDENT);
+				$m->bodyText(print_r($e, true));
+				$m->send();
+			} else {
+				$headers = array('From:'.SERVER_EMAIL);
+				mail(ADMIN_EMAILS, 'A Fatality has Occurred on ' .SERVER_IDENT, print_r($e, true), implode("\r\n", $headers));
+			}
 		}
 	}
 }
