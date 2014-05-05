@@ -121,7 +121,7 @@ class HNDB
 		
 		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
-		$result =& self::MDB2()->singleton($dsn, $options);
+		$result = self::MDB2()->singleton($dsn, $options);
 		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
 		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;

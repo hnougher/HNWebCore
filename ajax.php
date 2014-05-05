@@ -44,7 +44,7 @@ for ($i = 0; ; $i++) {
 	// Prepare query for queue
 	$query = array();
 	$query['def'] = $_SESSION['AJAX_QUERIES'][$_REQUEST['q'.$j]];
-	$query['param'] = (array) $_REQUEST['p'.$j];
+	$query['param'] = (isset($_REQUEST['p'.$j]) ? (array) $_REQUEST['p'.$j] : array());
 	
 	// Do we have the right amount of params?
 	$ACTPARAM = count($query['param']);
@@ -65,7 +65,9 @@ echo '[';
 foreach ($queryQueue as $queryNumer => $QUERY) {
 	$DB =& HNDB::singleton(constant('HNDB_' .$QUERY['def'][0]));
 	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
-	$result =& $stmt->execute($QUERY['param']);
+	if (HNDB::MDB2()->isError($stmt))
+		die('Error: Statement failed to prepare.' . (DEBUG ? $stmt->getUserInfo() : $stmt->getMessage()));
+	$result = $stmt->execute($QUERY['param']);
 	if (HNDB::MDB2()->isError($result))
 		die('Error: Statement failed to execute.' . (DEBUG ? $result->getUserInfo() : $result->getMessage()));
 	

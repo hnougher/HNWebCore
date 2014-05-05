@@ -65,6 +65,14 @@ function isFalse($condition, $message) {
 	return !$condition;
 }
 
+// A function to assist in including static files so they get updated when they need to
+function getURI2File($path) {
+	$fullpath = sprintf('%s%s', BASE_PATH, $path);
+	if (!file_exists($fullpath))
+		throw new Exception('File does not exist "' .$path. '"');
+	return sprintf('%s%s?M=%s', SERVER_ADDRESS, $path, date('ymdHis', filemtime($fullpath)));
+}
+
 // AJAX stored query functions
 /**
 * This function is used to store a query in $_SESSION.

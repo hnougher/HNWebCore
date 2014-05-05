@@ -217,10 +217,8 @@ class HNTPLSelector extends HNTPLCore
 			echo '<input type="hidden" name="q" value="' .$this->queryCode. '"/>';
 			if ($this->type & self::TYPE_SEARCH)
 				echo '<input type="hidden" name="p[]" class="srchp" value=""/>';
-			if ($this->type & self::TYPE_ORDER) {
+			if ($this->type & self::TYPE_ORDER)
 				echo '<input type="hidden" name="p[]" class="orderp" value=""/>';
-				echo '<input type="hidden" name="p[]" class="orderp" value=""/>';
-			}
 			if ($this->type & self::TYPE_PAGE) {
 				echo '<input type="hidden" name="p[]" id="rowoffset" value="0"/>';
 				echo '<input type="hidden" name="p[]" id="perpage" value="30"/>';

@@ -603,7 +603,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Required definition of interface ArrayAccess
 	*/
 	public function offsetExists($offset) {
-		return isset($this::$tableDef->getReadableFieldsAndSubtables()[$offset]);
+		$rfast = $this::$tableDef->getReadableFieldsAndSubtables();
+		return isset($rfast[$offset]);
 	}
 
 	/**
@@ -992,12 +993,8 @@ class _DefinitionField extends _DefinitionBase
 		
 		// Check that objects are setup correctly
 		if (isset($this->object)) {
-			if (empty($this->localField)) {
-				if (count($TableDef->keys) != 1)
-					throw new Exception('Default localField value requires exactly one key for this table');
-				reset($TableDef->keys);
-				$this->localField = key($TableDef->keys);
-			}
+			if (empty($this->localField))
+				$this->localField = $virtName;
 			if (empty($this->remoteField))
 				$this->remoteField = $virtName;
 		} elseif (isset($this->localField) && isset($this->remoteField)) {
@@ -1086,6 +1083,8 @@ class _MOBPrototype extends _MOBOBJPrototype
 		self::$totalUpgraded++;
 		$localFieldVal = $parent[$this->fieldDef->localField];
 		$remoteField = $this->fieldDef->remoteField;
+		// Hack for having an Array in the local field (eg: LDAP)
+		if (is_array($localFieldVal)) $localFieldVal = $localFieldVal[0];
 		return new HNMOBBasic($this->fieldDef->object, $remoteField, $localFieldVal, $parent, $loadNow);
 	}
 }

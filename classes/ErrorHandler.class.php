@@ -54,6 +54,15 @@ class ErrorHandler
 	* @see set_error_handler()
 	*/
 	public static function handler($errNo, $errStr, $errFile, $errLine) {
+		// IGNORE NOTICES TEMPORARILY
+		$forwardSlashErrFile = str_replace('\\', '/', $errFile);
+		$MDB2Path = str_replace('\\', '/', BASE_PATH.'/MDB2');
+		#var_dump($errNo, $forwardSlashErrFile, $MDB2Path);
+		if (substr($forwardSlashErrFile, 0, strlen($MDB2Path)) == $MDB2Path) {
+			#echo "Ignored an MDB2 message\n";
+			return;
+		}
+		
 		$fatals = array(E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR);
 		if (self::$processErrors || in_array($errNo, $fatals)) {
 			// Ignore notice in PEAR

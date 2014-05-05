@@ -15,8 +15,8 @@ define('BASE_PATH', str_replace('\\', '/', dirname(__FILE__)));
 
 
 $config = array(
-	'DEBUG' => true,
-	'STATS' => true,
+	'DEBUG' => false,
+	'STATS' => false,
 
 	'CSS_CACHETIME'		=> 7 * 24 * 60 * 60,
 	'LOGIN_TIMEOUT'		=> 1200,
