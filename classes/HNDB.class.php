@@ -285,8 +285,6 @@ class WhereList extends FieldList
 	public function append($proto) {
 		if (!is_array($proto))
 			$proto = func_get_args();
-		if (count($proto) % 2 == count($this->parts) % 2)
-			throw new Exception('Invalid number of sections in where append');
 		$this->parts = $this->block($proto, $this->parts);
 	}
 	
@@ -295,13 +293,13 @@ class WhereList extends FieldList
 	}
 	
 	private function block($args, $block = array()) {
-		if (count($args) % 2 != 1)
+		if (count($args) % 2 == count($block) % 2)
 			throw new Exception('Invalid number of sections in where block');
 		
 		foreach ($args as $key => $arg) {
-			if ($key % 2 == 1) {
+			if (count($block) % 2 == 1) {
 				if ($arg != WHERE_AND && $arg != WHERE_OR)
-					throw new Exception('Expected either WAND or WOR in index ' .$key);
+					throw new Exception('Expected either WHERE_AND or WHERE_OR in index ' .$key);
 			} elseif (is_array($arg)) {
 				$arg = $this->block($arg);
 			} else {

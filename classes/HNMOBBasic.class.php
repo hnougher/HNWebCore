@@ -191,7 +191,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 			if ($whereList === false)
 				$whereList = new WhereList();
 			if ($whereList->count())
-				$whereList->append(WhereList::WAND, new WherePart($this->parentIdField, '=', $this->parentId));
+				$whereList->append(WHERE_AND, new WherePart($this->parentIdField, '=', $this->parentId));
 			else
 				$whereList->append(new WherePart($this->parentIdField, '=', $this->parentId));
 		}

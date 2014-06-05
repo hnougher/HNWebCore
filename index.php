@@ -168,6 +168,7 @@ class Loader
 			// Load the staff object
 			$uo = HNOBJBasic::loadObject('user', $_SESSION['UserLoggedIn']);
 			self::loggedInUser($uo);
+			$uo->prepareObjectDefs();
 			$GLOBALS['UserRolesAtStart'] = $uo->userTypes();
 
 			// Delay set the debug showing for programmers
