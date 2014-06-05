@@ -277,13 +277,22 @@ class Loader
 		
 		$MOBProtoStats = _MOBPrototype::getObjectCounts();
 		$OBJProtoStats = _OBJPrototype::getObjectCounts();
-		$out .= sprintf( "\n<b>OBJProto Created, Unused, Current:</b> %d, %d, %d\n<b>MOBProto Created, Unused, Current:</b> %d, %d, %d",
+		$out .= sprintf("\n<b>OBJProto Created, Unused, Current:</b> %d, %d, %d\n<b>MOBProto Created, Unused, Current:</b> %d, %d, %d",
 			$OBJProtoStats[0],
 			$OBJProtoStats[0] - $OBJProtoStats[1],
 			$OBJProtoStats[0] - $OBJProtoStats[2],
 			$MOBProtoStats[0],
 			$MOBProtoStats[0] - $MOBProtoStats[1],
 			$MOBProtoStats[0] - $MOBProtoStats[2]
+			);
+		
+		$OBJCacheStats = HNOBJCache::getCacheCounts();
+		$out .= sprintf("\n<b>OBJCache Get, GetHit, Set, SetHit, Rem:</b> %d, %d%%, %d, %d%%, %d",
+			$OBJCacheStats[0],
+			($OBJCacheStats[1] == 0 ? 0 : $OBJCacheStats[1] / $OBJCacheStats[0] * 100),
+			$OBJCacheStats[2],
+			($OBJCacheStats[3] == 0 ? 0 : $OBJCacheStats[3] / $OBJCacheStats[2] * 100),
+			$OBJCacheStats[4]
 			);
 		
 		return $out;
