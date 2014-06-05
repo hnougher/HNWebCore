@@ -52,7 +52,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		parent::__destruct();
 	}
 
-    /** @see MDB2_Driver_oci8::getDSN */
+	/** @see MDB2_Driver_oci8::getDSN */
 	 function getDSN($type = 'string', $hidepw = false) {
 		$dsn = parent::getDSN($type, $hidepw);
 		if ($type == 'array')
@@ -60,45 +60,45 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		return $dsn;
 	 }
 
-    /** @see MDB2_Driver_oci8::connect */
-    function connect() {
-        $startTime = microtime(true);
-        $oldType = $this->phptype;
-        $this->phptype = 'oci8';
-        $result = parent::connect();
-        $this->phptype = $oldType;
-        self::$runStats['connect_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
-        return $result;
-    }
+	/** @see MDB2_Driver_oci8::connect */
+	function connect() {
+		$startTime = microtime(true);
+		$oldType = $this->phptype;
+		$this->phptype = 'oci8';
+		$result = parent::connect();
+		$this->phptype = $oldType;
+		self::$runStats['connect_time'] += microtime(true) - $startTime;
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		return $result;
+	}
 
-    /** @see MDB2_Driver_oci8::_doQuery */
-    function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
-        self::$runStats['query_count']++;
-        $startTime = microtime(true);
-        $result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
-        self::$runStats['query_time'] += microtime(true) - $startTime;
-        return $result;
-    }
+	/** @see MDB2_Driver_oci8::_doQuery */
+	function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
+		self::$runStats['query_count']++;
+		$startTime = microtime(true);
+		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
+		self::$runStats['query_time'] += microtime(true) - $startTime;
+		return $result;
+	}
 
-    /** @see MDB2_Driver_oci8::prepare */
-    // NOTE: phptype must be overridden to make MDB2 use our Statement class.
-    function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
-        $oldType = $this->phptype;
-        $this->phptype = 'hnoci8';
-        
-        self::$runStats['stmt_prep_count']++;
-        $startTime = microtime(true);
-        $stmt =& parent::prepare($query, $types, $result_types, $lobs);
-        self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($stmt))
-            throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
-        
-        #if ($this->phptype != 'hnoci8') throw new Exception('MDB2 phptype has been unexpectedly changed to ' .$this->phptype);
-        $this->phptype = $oldType;
-        return $stmt;
-    }
+	/** @see MDB2_Driver_oci8::prepare */
+	// NOTE: phptype must be overridden to make MDB2 use our Statement class.
+	function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
+		$oldType = $this->phptype;
+		$this->phptype = 'hnoci8';
+		
+		self::$runStats['stmt_prep_count']++;
+		$startTime = microtime(true);
+		$stmt =& parent::prepare($query, $types, $result_types, $lobs);
+		self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
+		if (HNDB::MDB2()->isError($stmt))
+			throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
+		
+		#if ($this->phptype != 'hnoci8') throw new Exception('MDB2 phptype has been unexpectedly changed to ' .$this->phptype);
+		$this->phptype = $oldType;
+		return $stmt;
+	}
 
 	/**
 	* This function prepares SQL statements using the table definitions created by OBJs.
@@ -410,19 +410,19 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 
 class MDB2_Statement_hnoci8 extends MDB2_Statement_oci8
 {
-    /*function __construct(&$db, &$statement, $positions, $query, $types, $result_types, $is_manip = false, $limit = null, $offset = null) {
-        $db->phpType = 'oci8';
-        parent::__construct($db, $statement, $positions, $query, $types, $result_types, $is_manip, $limit, $offset);
-    }*/
+	/*function __construct(&$db, &$statement, $positions, $query, $types, $result_types, $is_manip = false, $limit = null, $offset = null) {
+		$db->phpType = 'oci8';
+		parent::__construct($db, $statement, $positions, $query, $types, $result_types, $is_manip, $limit, $offset);
+	}*/
 
-    /** @see MDB2_Statement_oci8::_execute */
-    function &_execute($result_class = true, $result_wrap_class = false) {
-        MDB2_Driver_hnoci8::$runStats['stmt_exec_count']++;
-        $startTime = microtime(true);
-        $result =& parent::_execute($result_class, $result_wrap_class);
-        if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
-        MDB2_Driver_hnoci8::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
-        return $result;
-    }
+	/** @see MDB2_Statement_oci8::_execute */
+	function &_execute($result_class = true, $result_wrap_class = false) {
+		MDB2_Driver_hnoci8::$runStats['stmt_exec_count']++;
+		$startTime = microtime(true);
+		$result =& parent::_execute($result_class, $result_wrap_class);
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		MDB2_Driver_hnoci8::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
+		return $result;
+	}
 }

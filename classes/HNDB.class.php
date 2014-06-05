@@ -27,18 +27,19 @@ class HNDB
 	*/
 	public static $runStats = array();
 
-	private static $MDB2;
 	public static function MDB2() {
-		if (!isset(self::$MDB2)) {
+		static $MDB2;
+		if (!isset($MDB2)) {
 			HNDB::$runStats['mdb2'] = array();
 			
 			$startTime = microtime(true);
 			require_once 'MDB2.php';
 			require_once 'PEAR/Exception.php';
-			self::$MDB2 = new MDB2();
+			$MDB2 = new MDB2();
+			
 			HNDB::$runStats['mdb2']['init'] = microtime(true) - $startTime;
 		}
-		return self::$MDB2;
+		return $MDB2;
 	}
 
 	private static function checkCustomDSN($dsn) {
@@ -87,7 +88,7 @@ class HNDB
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
 		$options['persistent'] = true;
-		$MDB2 =& HNDB::MDB2();
+		$MDB2 = HNDB::MDB2();
 		
 		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);

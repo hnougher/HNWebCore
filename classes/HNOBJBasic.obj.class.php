@@ -98,6 +98,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$OBJ = HNOBJCache::get($object, $id);
 		if ($OBJ === false || !($OBJ instanceof HNOBJBasic)) {
 			// We need a new object
+			$className = 'OBJ' . $object;
 			$OBJ = new $className($id, $loadNow);
 			if (!empty($id))
 				HNOBJCache::set($OBJ, $object);

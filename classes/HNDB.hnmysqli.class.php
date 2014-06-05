@@ -47,7 +47,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		parent::__destruct();
 	}
 
-    /** @see MDB2_Driver_mysqli::getDSN */
+	/** @see MDB2_Driver_mysqli::getDSN */
 	 function getDSN($type = 'string', $hidepw = false) {
 		$dsn = parent::getDSN($type, $hidepw);
 		if ($type == 'array')
@@ -55,35 +55,35 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		return $dsn;
 	 }
 
-    /** @see MDB2_Driver_mysqli::connect */
-    function connect() {
-        $startTime = microtime(true);
+	/** @see MDB2_Driver_mysqli::connect */
+	function connect() {
+		$startTime = microtime(true);
 		$result = parent::connect();
-        self::$runStats['connect_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
-        return $result;
+		self::$runStats['connect_time'] += microtime(true) - $startTime;
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
+		return $result;
 	}
 
-    /** @see MDB2_Driver_mysqli::_doQuery */
-    function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
-        self::$runStats['query_count']++;
-        $startTime = microtime(true);
+	/** @see MDB2_Driver_mysqli::_doQuery */
+	function &_doQuery($query, $is_manip = false, $connection = null, $database_name = null) {
+		self::$runStats['query_count']++;
+		$startTime = microtime(true);
 		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
-        self::$runStats['query_time'] += microtime(true) - $startTime;
-        return $result;
+		self::$runStats['query_time'] += microtime(true) - $startTime;
+		return $result;
 	}
 
-    /** @see MDB2_Driver_mysqli::prepare */
-    function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
-        self::$runStats['stmt_prep_count']++;
-        $startTime = microtime(true);
-        $stmt =& parent::prepare($query, $types, $result_types, $lobs);
-        self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($stmt))
-            throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
-        return $stmt;
-    }
+	/** @see MDB2_Driver_mysqli::prepare */
+	function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
+		self::$runStats['stmt_prep_count']++;
+		$startTime = microtime(true);
+		$stmt =& parent::prepare($query, $types, $result_types, $lobs);
+		self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
+		if (HNDB::MDB2()->isError($stmt))
+			throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
+		return $stmt;
+	}
 
 	/**
 	* This function prepares SQL statements using the table definitions created by OBJs.

@@ -380,6 +380,7 @@ class Loader
 			error('An error has occurred while communicating with the authentication servers.');
 			error('Hopefully an administrator has been notified of the problem and will fix it shortly.');
 			ErrorHandler::crashHandler($e);
+			return false;
 		}
 		
 		if (!$DBUser)

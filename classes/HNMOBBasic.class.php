@@ -187,7 +187,8 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->isLoaded = false;
 		$this->objectList = array();
 		
-		$result = $this->load_helper(($loadChildren ? 'ALL' : 'STD'), $orderParts, $whereList);
+		$stmt = $this->load_helper(($loadChildren ? 'ALL' : 'STD'), $orderParts, $whereList);
+		$result = $stmt->execute();
 		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !HNDB::MDB2()->isError($row)) {
 			$idSet = array();
 			foreach ($this->tableDef->keys as $fieldName => $fieldDef)
@@ -208,16 +209,19 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 		
 		$result->free();
+		$stmt->free();
 		$this->isLoaded = true;
 		return true;
 	}
 
 	public function load_count($whereList = false) {
 		$count = null;
-		$result = $this->load_helper('COUNT', false, $whereList);
+		$stmt = $this->load_helper('COUNT', false, $whereList);
+		$result = $stmt->execute();
 		if (($row = $result->fetchRow()) && !HNDB::MDB2()->isError($row))
 			$count = $row[0];
 		$result->free();
+		$stmt->free();
 		return $count;
 	}
 
@@ -240,11 +244,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 		
 		$DB =& HNDB::singleton(constant($this->tableDef->connection));
-		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadType, $whereList, $orderParts);
-		$result = $stmt->execute();
-		
-		$stmt->free();
-		return $result;
+		return $DB->prepareMOBQuery($this->tableDef, $loadType, $whereList, $orderParts);
 	}
 
 	/**
