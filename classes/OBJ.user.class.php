@@ -32,7 +32,7 @@ class OBJUser extends HNOBJBasic
 		"fields": {
 			"userid":		{"type":"autoid", "readBy":["all"], "writeBy":[], "insertBy":[]},
 			"username":		{"type":"text", "validation":"/^.{0,320}$/", "readBy":["all"]},
-			"password":		{"type":"text", "validation":"/^.{0,128}$/", "readBy":[]},
+			"password":		{"type":"text", "validation":"/^.{0,128}$/", "readBy":["all"]},
 			"first_name":	{"type":"text", "validation":"/^.{0,40}$/"},
 			"last_name":	{"type":"text", "validation":"/^.{0,40}$/"},
 			"full_name":	{"type":"text", "SQL":"CONCAT(`T`.`first_name`,\' \',`T`.`last_name`)", "writeBy":[], "insertBy":[]},

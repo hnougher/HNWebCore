@@ -187,6 +187,49 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->isLoaded = false;
 		$this->objectList = array();
 		
+		$result = $this->load_helper(($loadChildren ? 'ALL' : 'STD'), $orderParts, $whereList);
+		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !HNDB::MDB2()->isError($row)) {
+			$idSet = array();
+			foreach ($this->tableDef->keys as $fieldName => $fieldDef)
+				$idSet[] = $row[$fieldName];
+			$object = HNOBJCache::get($this->OBJName, $idSet);
+			if ($object === false) {
+				if ($loadChildren) {
+					$object = HNOBJBasic::loadObject($this->OBJName, $idSet);
+					$object->set_reverse_link($this->parentIdField, $this->parentObj);
+					$object->_internal_set_data($row);
+				} else {
+					$object = new _OBJPrototype($this->OBJName, $idSet);
+					HNOBJCache::set($object, $this->OBJName);
+				}
+			}
+			$this->objectList[] = $object;
+			unset($object);
+		}
+		
+		$result->free();
+		$this->isLoaded = true;
+		return true;
+	}
+
+	public function load_count($whereList = false) {
+		$count = null;
+		$result = $this->load_helper('COUNT', false, $whereList);
+		if (($row = $result->fetchRow()) && !HNDB::MDB2()->isError($row))
+			$count = $row[0];
+		$result->free();
+		return $count;
+	}
+
+	/**
+	* @param $loadType can be one of the following:
+	*   - ALL: Loads all fields in the object (for pre-loading children).
+	*   - STD: Just loads the ID fields.
+	*   - COUNT: Just counts the number of objects in the query result.
+	* @param $orderParts See load().
+	* @param $whereList See load().
+	*/
+	private function load_helper($loadType, $orderParts = false, $whereList = false) {
 		if ($this->parentIdField != 'NONE') {
 			if ($whereList === false)
 				$whereList = new WhereList();
@@ -197,24 +240,11 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 		
 		$DB =& HNDB::singleton(constant($this->tableDef->connection));
-		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadChildren, $whereList, $orderParts);
+		$stmt = $DB->prepareMOBQuery($this->tableDef, $loadType, $whereList, $orderParts);
 		$result = $stmt->execute();
 		
-		while (($row = $result->fetchRow(MDB2_FETCHMODE_ASSOC)) && !HNDB::MDB2()->isError($row)) {
-			$idSet = array();
-			foreach ($this->tableDef->keys as $fieldName => $fieldDef) {
-				$idSet[] = $row[$fieldName];
-			}
-			if ($loadChildren)
-				$this->objectList[] = new _OBJPrototype($this->OBJName, $idSet, $row);
-			else
-				$this->objectList[] = new _OBJPrototype($this->OBJName, $idSet);
-		}
-		
-		$result->free();
 		$stmt->free();
-		$this->isLoaded = true;
-		return true;
+		return $result;
 	}
 
 	/**
@@ -326,9 +356,11 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Check if progressive creation of HNOBJ for offset is needed
 		$object = $this->objectList[$offset];
 		if ($object instanceof _OBJPrototype) {
-			$object = $object->getUpgrade(false);
 			if (!empty($this->parentObj) && $this->parentIdField != 'NONE')
-				$object->set_reverse_link($this->parentIdField, $this->parentObj);
+				$object = $object->getUpgrade($this->parentIdField, $this->parentObj, false);
+			else
+				$object = $object->getUpgrade(null, null, false);
+			HNOBJCache::set($object, $this->OBJName);
 			$this->objectList[$offset] = $object;
 		}
 		
@@ -354,9 +386,9 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Required definition of interface Countable
 	*/
 	public function count() {
-		if (!$this->checkLoaded(true))
-			return 0;
-		return count($this->objectList);
+		if ($this->checkLoaded(false))
+			return count($this->objectList);
+		return $this->load_count();
 	}
 }
 

@@ -34,12 +34,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	private static $totalDestroyed = array();
 
 	/**
-	 * This is an array of objects that have already been loaded.
-	 * @var array
-	 */
-	private static $cachedObjects = array();
-
-	/**
 	* Will contain the id for the id field of this object.
 	* @var integer
 	*/
@@ -101,26 +95,14 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public static function loadObject($object, $id, $loadNow = false) {
 		self::loadClassFor($object);
 		
-		$idFix = implode('!', (array) $id);
-		if (isset(self::$cachedObjects[$object]) && isset(self::$cachedObjects[$object][$idFix])) {
-			#echo "USE(" .$object. "," .$idFix. ") \n";
-			// There is already an object loaded for this ID
-			return self::$cachedObjects[$object][$idFix];
-		}
-		else {
-			#echo "NEW(" .$object. "," .$idFix. ") \n";
+		$OBJ = HNOBJCache::get($object, $id);
+		if ($OBJ === false || !($OBJ instanceof HNOBJBasic)) {
 			// We need a new object
-			$className = 'OBJ' . $object;
-			$obj = new $className($id, $loadNow);
-			
-			if (!empty($idFix)) {
-				if( !isset( self::$cachedObjects[$object]))
-					self::$cachedObjects[$object] = array();
-				self::$cachedObjects[$object][$idFix] = $obj;
-			}
-			
-			return $obj;
+			$OBJ = new $className($id, $loadNow);
+			if (!empty($id))
+				HNOBJCache::set($OBJ, $object);
 		}
+		return $OBJ;
 	}
 
 	public static function &getTableDefFor($object) {
@@ -201,7 +183,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	
 	/**
 	* This method is only to be used inside the OBJ classes.
-	* It sets the incomming parameter as though it came from sql directly.
+	* It sets the incoming parameter as though it came from sql directly.
 	*/
 	public function _internal_set_data($dataSet) {
 		// Setup the data structure
@@ -343,11 +325,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->status = self::NOT_LOADED;
 		$oldData = $this->myData;
 		$this->myData = array();
-		$this->loadedWithTableDef = $this::$tableDef; // Copy of object not variable slot
 		
 		// If not perpared already make the static select statement
 #		if (empty(static::$selectStatement)) {
 # Major optimisation ignored here because binding fails for unknown reasons
+###################################################################################
 			$DB =& HNDB::singleton(constant(static::$tableDef->connection));
 			static::$selectStatement = $DB->prepareOBJQuery('SELECT', static::$tableDef);
 			unset($DB);
@@ -386,16 +368,23 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* Processes the Data into the correct data types and locally store it.
 	*/
 	protected function storeArrayToLocal($dataArray, $oldData = array()) {
+		$this->loadedWithTableDef = $this::$tableDef; // Copy of object not variable slot
 		foreach ($this::$tableDef->fields as $name => &$fieldDef) {
 			// In case the value to set is not defined, we give it an empty string
 			if (!isset($dataArray[$name]))
 				$dataArray[$name] = '';
 			
 			// Special handling of objects
-			if (!empty($fieldDef->object))
-				$this->myData[$name] = new _OBJPrototype($fieldDef->object, $dataArray[$name]);
-			else
+			if (!empty($fieldDef->object)) {
+				$object = HNOBJCache::get($fieldDef->object, $dataArray[$name]);
+				if ($object === false) {
+					$object = new _OBJPrototype($fieldDef->object, $dataArray[$name]);
+					HNOBJCache::set($object, $fieldDef->object);
+				}
+				$this->myData[$name] = $object;
+			} else {
 				$this->myData[$name] = $dataArray[$name];
+			}
 			unset($fieldDef);
 		}
 		
@@ -472,7 +461,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		}
 		
 		// Prepare DB connection and statement
-		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
+		$DB = HNDB::singleton(constant($this::$tableDef->connection));
 		$stmt = $DB->prepareOBJQuery($type, $this::$tableDef, $fields);
 		
 		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
@@ -480,10 +469,13 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		if ($result == 0)
 			throw new Exception('No rows affected by ' .$type);
 		
-		// Update my ID values
+		// Update my ID values and cache
 		if ($type == 'INSERT' && $this::$tableDef->hasAutoId) {
 			$this->myId[0] = $DB->lastInsertID($this::$tableDef->table);
+			HNOBJCache::set($this);
 		} else {
+			if ($type == 'UPDATE')
+				HNOBJCache::rem($this);
 			$keyId = 0;
 			foreach ($this::$tableDef->keys AS $fieldName => $fieldDef) {
 				if (isset($this->myChangedData[$fieldName]))
@@ -494,11 +486,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 					$this->myId[$keyId] = $this->myId[$keyId]->getId();
 				$keyId++;
 			}
+			HNOBJCache::set($this);
 		}
 		
-		// YAY! we are done! Now to reload and clean up
+		// YAY! we are done! Now to clean up
 		$stmt->free();
-		$this->load();
+		$this->status = self::NOT_LOADED;
 		$this->myChangedData = array();
 		return true;
 	}
@@ -519,8 +512,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			$replacements[$val] = $this->myId[$key];
 		
 		// Prepare DB connection and statement
-		$DB =& HNDB::singleton(constant($this::$tableDef->connection));
-		$stmt =& $DB->prepareOBJQuery('DELETE', $this::$tableDef);
+		$DB = HNDB::singleton(constant($this::$tableDef->connection));
+		$stmt = $DB->prepareOBJQuery('DELETE', $this::$tableDef);
 		
 		$result = $stmt->execute($replacements);
 		if ($result == 0)
@@ -529,6 +522,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// YAY! We have deleted the record!
 		$stmt->free();
 		$this->status = self::NOT_LOADED;
+		HNOBJCache::rem($this);
 		return true;
 	}
 
@@ -537,8 +531,14 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	 * OR for now just clean up everything.
 	 */
 	public function clean($callingParent = false) {
-		if ($this->status == self::NOT_LOADED || (!empty($callingParent) && $this->myParentObject !== $callingParent))
-			return;
+		if (!empty($callingParent) && $this->myParentObject !== $callingParent)
+			return;// Don't clean if the caller parent does not match
+		
+		// Get rid of cache
+		HNOBJCache::rem($this);
+		
+		if ($this->status == self::NOT_LOADED)
+			return; // If not loaded we don't need to continue;
 		$this->status = self::NOT_LOADED;
 		
 		foreach ($this->myData AS $data) {
@@ -556,12 +556,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->myData = array();
 		$this->myChangedData = array();
 		$this->myParentObject = null;
-
-		$idFix = implode('!', (array) $this->getId());
-		if (isset(self::$cachedObjects[$this::$tableDef->table][$idFix])) {
-			#echo "CLEAN(" .$this::$tableDef->table. "," .$idFix. ") \n";
-			unset(self::$cachedObjects[$this::$tableDef->table][$idFix]);
-		}
 	}
 
 
@@ -632,10 +626,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		
 		$fieldData = $this->myData[$field];
 		if ($fieldData instanceof _MOBOBJPrototype) {
-			if ($fieldData instanceof _OBJPrototype)
-				$this->myData[$field] = $fieldData->getUpgrade();
-			elseif ($fieldData instanceof _MOBPrototype)
-				$this->myData[$field] = $fieldData->getUpgrade($this);
+			if ($fieldData instanceof _OBJPrototype) {
+				$fieldDef = $this::$tableDef->fields[$field];
+				$this->myData[$field] = $fieldData->getUpgrade($fieldDef->remoteField, $this, false);
+				// No cache needed here, getUpgrade calls loadObject which caches
+			} elseif ($fieldData instanceof _MOBPrototype)
+				$this->myData[$field] = $fieldData->getUpgrade($this, false);
 			else
 				throw new Exception('Unknown instance of _MOBOBJPrototype found as ' .get_class($fieldData));
 			$fieldData = $this->myData[$field];
@@ -1065,6 +1061,83 @@ class _DefinitionSubTable extends _DefinitionBase
 }
 
 
+class HNOBJCache
+{
+	private static $getTotal = 0;
+	private static $getHits = 0;
+	private static $setTotal = 0;
+	private static $setHits = 0;
+	private static $remTotal = 0;
+	public static function getCacheCounts() {
+		return array(self::$getTotal,self::$getHits,self::$setTotal,self::$setHits,self::$remTotal);
+	}
+
+	/** This is an array of objects and prototypes that have already been loaded */
+	public static $cachedObjects = array('_OBJPrototype' => array());
+
+	/** Checks if an OBJ or PROTO is in the cache for given className and id array.
+	*	$className should NOT have leading 'OBJ'. */
+	public static function get($className, $id) {
+		self::$getTotal++;
+		$idFix = (is_array($id) ? implode('!', $id) : $id);
+		$className = strtoupper($className);
+		if (empty($idFix))
+			$t =& self::$cachedObjects['_OBJPrototype'];
+		elseif (!isset(self::$cachedObjects[$className]))
+			return false;
+		else
+			$t =& self::$cachedObjects[$className];
+		if (!isset($t[$idFix]))
+			return false;
+		self::$getHits++;
+		return $t[$idFix];
+	}
+
+	/** Properly sets the OBJ or PROTO into the cache. $className should NOT have leading 'OBJ'. */
+	public static function set($OBJ, $className = null) {
+		self::$setTotal++;
+		$idFix = $OBJ->getId();
+		$idFix = (is_array($idFix) ? implode('!', $idFix) : $idFix);
+		
+		if ($className === null) {
+			if ($OBJ instanceof _OBJPrototype) {
+				if (DEBUG)
+					throw new Exception('$className should not be null');
+				return;
+			}
+			$className = substr(get_class($OBJ), 3);
+		}
+		$className = strtoupper($className);
+		
+		if (empty($idFix)) {
+			if ($OBJ instanceof _OBJPrototype) {
+				if (DEBUG && isset($OBJ->data))
+					throw new Exception('Empty _OBJPrototype must not have data if its being cached');
+				self::$setHits++;
+				self::$cachedObjects['_OBJPrototype'][$className] = $OBJ;
+			} elseif (DEBUG) {
+				throw new Exception('Dont cache HNOBJBasic with no ID');
+			}
+			return;
+		}
+		
+		if (!isset(self::$cachedObjects[$className]))
+			self::$cachedObjects[$className] = array();
+		self::$setHits++;
+		self::$cachedObjects[$className][$idFix] = $OBJ;
+	}
+
+	/** Removes an OBJ or PROTO from the cache. $className should NOT have leading 'OBJ'. */
+	public static function rem($OBJ, $className = null) {
+		self::$remTotal++;
+		$idFix = implode('!', (array) $OBJ->getId());
+		$className = strtoupper($className == null ? substr(get_class($OBJ), 3) : $className);
+		if (isset(self::$cachedObjects[$className][$idFix]))
+			unset(self::$cachedObjects[$className][$idFix]);
+	}
+}
+
+
 abstract class _MOBOBJPrototype {}; // This first Prototype is for simplfying logic
 class _MOBPrototype extends _MOBOBJPrototype
 {
@@ -1084,7 +1157,7 @@ class _MOBPrototype extends _MOBOBJPrototype
 		self::$totalDestroyed++;
 	}
 	
-	public function getUpgrade($parent, $loadNow = false) {
+	public function getUpgrade($parent, $loadNow) {
 		self::$totalUpgraded++;
 		$localFieldVal = $parent[$this->fieldDef->localField];
 		$remoteField = $this->fieldDef->remoteField;
@@ -1116,9 +1189,11 @@ class _OBJPrototype extends _MOBOBJPrototype
 		self::$totalDestroyed++;
 	}
 	
-	public function getUpgrade($loadNow = false) {
+	public function getUpgrade($parentIdField, $parentObj, $loadNow) {
 		self::$totalUpgraded++;
 		$object = HNOBJBasic::loadObject($this->class, $this->myId, $loadNow);
+		if ($parentIdField != null && $parentObj != null)
+			$object->set_reverse_link($parentIdField, $parentObj);
 		if (isset($this->data))
 			$object->_internal_set_data($this->data);
 		return $object;

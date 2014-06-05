@@ -198,17 +198,29 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		return $this->prepare($SQL, $replaceTypes, $returnTypes);
 	}
 	
-	public function prepareMOBQuery($tableDef, $allFields, $whereList = false, $orderParts = false) {
+	/**
+	* @param $type can be one of the following:
+	*   - ALL: Loads all fields in the object (for pre-loading children).
+	*   - STD: Just loads the ID fields.
+	*   - COUNT: Just counts the number of objects in the query result.
+	*/
+	public function prepareMOBQuery($tableDef, $type, $whereList = false, $orderParts = false) {
 		// Fields to collect
 		$sqlFields = array();
-		$sqlFieldDefs = ($allFields ? $tableDef->getReadableFields() : $tableDef->keys);
+		$returnTypes = array();
 		
-		foreach ($sqlFieldDefs as $fieldName => $fieldDef) {
-			$SQL = $fieldDef->SQLWithTable();
-			if ($fieldName != substr($SQL, 1, -1))
-				$SQL .= ' AS "' .$fieldName. '"';
-			$sqlFields[] = $SQL;
-			$returnTypes[] = $fieldDef->type;
+		if ($type == 'COUNT') {
+			$sqlFields[] = 'COUNT(*)';
+			$returnTypes[] = 'integer';
+		} else {
+			$sqlFieldDefs = ($type == 'ALL' ? $tableDef->getReadableFields() : $tableDef->keys);
+			foreach ($sqlFieldDefs as $fieldName => $fieldDef) {
+				$SQL = $fieldDef->SQLWithTable();
+				if ($fieldName != substr($SQL, 1, -1))
+					$SQL .= ' AS "' .$fieldName. '"';
+				$sqlFields[] = $SQL;
+				$returnTypes[] = $fieldDef->type;
+			}
 		}
 		
 		// Where filter
@@ -221,27 +233,32 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		}
 		
 		// Result order
-		$orderFields = array();
-		if (is_array($orderParts)) {
-			foreach ($tableDef->getReadableFields() as $fieldName => $fieldDef) {
-				if (isset($orderParts[$fieldName])) {
-					$orderFields[] = $fieldDef->SQLWithTable() .($orderParts[$fieldName] ? '' : ' DESC');
-					unset($orderParts[$fieldName]);
+		if ($type == 'COUNT') {
+			$order = '';
+		} else {
+			$orderFields = array();
+			if (is_array($orderParts)) {
+				foreach ($tableDef->getReadableFields() as $fieldName => $fieldDef) {
+					if (isset($orderParts[$fieldName])) {
+						$orderFields[] = $fieldDef->SQLWithTable() .($orderParts[$fieldName] ? '' : ' DESC');
+						unset($orderParts[$fieldName]);
+					}
 				}
+				if (!empty($orderParts))
+					throw new Exception('Order field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
+			} elseif (isset($orderParts) && $orderParts == 'RAND()') {
+				$orderFields[] = 'RAND()';
+			} else { // Default ordering is by keys
+				foreach ($tableDef->keys as $fieldName => $fieldDef)
+					$orderFields[] = $fieldDef->SQLWithTable();
 			}
-			if (!empty($orderParts))
-				throw new Exception('Order field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
-		} elseif (isset($orderParts) && $orderParts == 'RAND()') {
-			$orderFields[] = 'RAND()';
-		} else { // Default ordering is by keys
-			foreach ($tableDef->keys as $fieldName => $fieldDef)
-				$orderFields[] = $fieldDef->SQLWithTable();
+			$order = ' ORDER BY ' .implode(',', $orderFields);
 		}
 		
-		$SQL = sprintf('SELECT %s FROM `%s` %s ORDER BY %s',
-			implode(',', $sqlFields), $tableDef->table, $where, implode(',', $orderFields));
+		$SQL = sprintf('SELECT %s FROM `%s` %s%s',
+			implode(',', $sqlFields), $tableDef->table, $where, $order);
 		
-#		var_dump($SQL, $returnTypes);
+		#var_dump($SQL, $returnTypes);
 		return $this->prepare($SQL, $returnTypes);
 	}
 	
@@ -341,9 +358,9 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				if ($part->dontEscapeField) {
 					$ret .= $part->field;
 				} else {
-				if (!isset($tableDef->fields[$part->field]))
-					throw new Exception('Invalid field "' .$part->field. '" in where part');
-				$ret .= $tableDef->fields[$part->field]->SQLWithTable($tableAlias);
+					if (!isset($tableDef->fields[$part->field]))
+						throw new Exception('Invalid field "' .$part->field. '" in where part');
+					$ret .= $tableDef->fields[$part->field]->SQLWithTable($tableAlias);
 				}
 				
 				if (!in_array($part->sign, self::$validWhereSigns))
@@ -356,7 +373,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 					if (isset($tableDef->fields[$part->value]))
 						$ret .= $tableDef->fields[$part->value]->SQLWithTable($tableAlias);
 					else
-						$ret .= '"' .$this->escape($part->value). '"';
+						$ret .= $this->quote($part->value);
 				}
 			} elseif (is_array($part)) {
 				$ret .= '(' .$this->wherePrinter($part). ')';
