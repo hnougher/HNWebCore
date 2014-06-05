@@ -82,6 +82,13 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	 */
 	protected $myParentObject = null;
 
+	public static function loadClassFor($object) {
+		if (empty($object))
+			throw new Exception('No object given');
+		if (!class_exists('OBJ' . $object))
+			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
+	}
+
 	/**
 	* Loads an object using the config specified object class so that the
 	* programmer doesnt have to do such complex things often.
@@ -92,11 +99,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return HNOBJBasic A object class that extends the HNOBJBasic base class.
 	*/
 	public static function loadObject($object, $id, $loadNow = false) {
-		$className = 'OBJ' . $object;
-		if (empty($object))
-			throw new Exception('No object given');
-		if (!class_exists($className))
-			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
+		self::loadClassFor($object);
 		
 		$idFix = implode('!', (array) $id);
 		if (isset(self::$cachedObjects[$object]) && isset(self::$cachedObjects[$object][$idFix])) {
@@ -107,6 +110,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		else {
 			#echo "NEW(" .$object. "," .$idFix. ") \n";
 			// We need a new object
+			$className = 'OBJ' . $object;
 			$obj = new $className($id, $loadNow);
 			
 			if (!empty($idFix)) {
@@ -117,6 +121,17 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			
 			return $obj;
 		}
+	}
+
+	public static function &getTableDefFor($object) {
+		self::loadClassFor($object);
+		$className = 'OBJ' . $object;
+		return $className::getTableDef();
+	}
+
+	public static function &getTableDef() {
+		static::prepareObjectDefs();
+		return static::$tableDef;
 	}
 
 	public static function prepareObjectDefs() {
@@ -130,11 +145,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			
 			static::$selectStatement = false;
 		}
-	}
-
-	public static function &getTableDef() {
-		static::prepareObjectDefs();
-		return static::$tableDef;
 	}
 
 	/**

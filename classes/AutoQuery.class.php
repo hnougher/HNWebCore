@@ -82,12 +82,7 @@ class AutoQueryTable
 			throw new Exception('AQ is not an AutoQuery object');
 		$this->AQ = $AQ;
 		$this->tableAlias = $alias;
-		
-		$ClassName = 'OBJ' .$object;
-		if (!class_exists($ClassName))
-			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
-		$this->tableDef =& $ClassName::getTableDef();
-		
+		$this->tableDef =& HNOBJBasic::getTableDefFor($object);
 		$this->fieldList = new FieldList();
 		$this->whereList = new WhereList();
 		$this->orderList = new OrderList();

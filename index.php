@@ -359,7 +359,7 @@ class Loader
 		unset($_GET['login_pass'], $_POST['login_pass'], $_REQUEST['login_pass']);
 		
 		try {
-			require_once CLASS_PATH.'/OBJ.user.class.php';
+			HNOBJBasic::loadClassFor('user');
 			$obj = new stdClass();
 			$obj->username = $username;
 			$obj->password = $password;

@@ -93,12 +93,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	*/
 	public function __construct($object, $field, $id, $parent = null, $loadNow = false) {
 		$this->OBJName = $object;
-		$ClassName = 'OBJ' . $object;
-		if (empty($object))
-			throw new Exception('No object given');
-		if (!class_exists($ClassName))
-			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
-		$this->tableDef =& $ClassName::getTableDef();
+		$this->tableDef =& HNOBJBasic::getTableDefFor($object);
 		$readableFields = $this->tableDef->getReadableFields();
 		
 		if (is_object($id) || is_resource($id))
