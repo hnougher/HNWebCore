@@ -90,6 +90,17 @@ class OBJUser extends HNOBJBasic
 	}
 	
 	/**
+	 * index.php callls this method during the login and logout steps.
+	 * This login/logout will be for the user in this object.
+	 * 
+	 * @param Boolean $isLogin TRUE if this is callled during a login, FALSE otherwise like in logout.
+	 * @param Boolean $isSuccess TRUE if the login/logout succeeded, FALSE otherwise.
+	 */
+	public function login_logit($isLogin, $isSuccess) {
+		// Noop
+	}
+	
+	/**
 	* Collects all the user types for this current user.
 	*/
 	public function userTypes() {

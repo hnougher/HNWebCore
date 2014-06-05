@@ -144,6 +144,65 @@ class HNDB
 	*/
 	public static function highlight_sql($sql, $color = true, $multiline = true)
 	{
+		$keywords = array(
+			'SELECT',
+			'UPDATE',
+			'INSERT',
+			'DELETE',
+			'GROUP_CONCAT',
+			'WITHIN GROUP',
+			'CONCAT_WS',
+			'CONCAT',
+			'COUNT',
+			'DISTINCT',
+			'IF',
+			'MAX',
+			'MIN',
+			'IS NULL',
+			'IS NOT NULL',
+			'SUM',
+			'FROM',
+			'SET',
+			'LEFT JOIN',
+			'RIGHT JOIN',
+			'INNER JOIN',
+			'OUTER JOIN',
+			'JOIN',
+			'USING',
+			'ON',
+			'WHERE',
+			'GROUP BY',
+			'ORDER BY',
+			'ASC',
+			'DESC',
+			'HAVING',
+			'LIMIT',
+			'AS',
+			'UNIX_TIMESTAMP',
+			'SEPARATOR',
+			'CASE',
+			'WHEN',
+			'THEN',
+			'ELSE',
+			'END',
+			'AND',
+			'OR',
+			'NOT',
+			'LIKE',
+		);
+		$operators = array(
+			'(?<=^|\\s)=(?=\\s|$)',
+			'(?<=^|\\s)\+(?=\\s|$)',
+			'(?<=^|\\s)-(?=\\s|$)',
+			'(?<=^|\\s)\*(?=\\s|$)',
+			'(?<=^|\\s)\/(?=\\s|$)',
+			'(?<=^|\\s)%(?=\\s|$)',
+			'\|\|',
+			'\(',
+			'\)',
+			);
+	
+	
 		$find = array(
 			'/(\s{2,})/',
 
@@ -160,29 +219,31 @@ class HNDB
 				'/("[^"]*")/',
 				'/(\'[^\']*\')/',
 				'/((?:t\d.)?(?:`[^`]*`|\*))/',
-				'/(SELECT|UPDATE|INSERT|DELETE|GROUP_CONCAT|CONCAT_WS|CONCAT|COUNT|DISTINCT|IF|MAX|MIN|NULL|SUM|FROM|SET|LEFT JOIN|USING|ON|WHERE|GROUP BY|ORDER BY|ASC|DESC|HAVING|LIMIT|AS|UNIX_TIMESTAMP|SEPARATOR| AND | OR )/',
+				'/(?<=^|[^a-z0-9])(' .implode('|', $keywords). ')(?=[^a-z0-9]|$)/i',
+				'/(?<=^|[^a-z0-9])([a-z][a-z_0-9\.]*(?=\()|:[a-z0-9]+)/i',
+				'/(' .implode('|', $operators). ')/',
 				);
 			$replace = array(
 				'<span style="color:#077">$1</span>',
 				'<span style="color:#077">$1</span>',
 				'<span style="color:#070">$1</span>',
 				'<span style="color:#707;font-weight:bold">$1</span>',
+				'<span style="color:#770;font-weight:bold">$1</span>',
+				'<span style="color:#707">$1</span>',
 				);
 			$sql = preg_replace($find, $replace, $sql);
 			$sql = '<span style="color:#F0F">' .$sql. '</span>';
 		}
 		if ($multiline) {
 			$find = array(
-				'/(FROM|SET|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT)/',
-				'/(LEFT JOIN| AND | OR )/',
+				'/(?<=^|[^a-z0-9])(FROM|SET|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT)(?=[^a-z0-9]|$)/i',
+				'/(?<=^|[^a-z0-9])(LEFT JOIN|WHEN|ELSE|END|AND|OR)(?=[^a-z0-9]|$)/i',
 				'/(,)/',
-				'/([^C])(ON)/',
 				);
 			$replace = array(
 				'<br/>$1',
 				'<br/>&nbsp;&nbsp;&nbsp;&nbsp;$1',
 				'$1<br/>&nbsp;&nbsp;&nbsp;&nbsp;',
-				'$1<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$2',
 				);
 			$sql = preg_replace($find, $replace, $sql);
 		}

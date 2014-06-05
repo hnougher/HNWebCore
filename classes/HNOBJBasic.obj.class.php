@@ -976,6 +976,7 @@ class _DefinitionField extends _DefinitionBase
 	private static $allowedParameters = array('type','object','SQL',
 		'validation','values','default','localField','remoteField');
 	/* Valid param for OBJ/MOB are type, SQL, readBy, writeBy, insertBy, (validation OR values), default */
+	/* Default: Used raw as the default value in an insert statement */
 #	public $type = '', $object = '', $SQL = '', $validation = false, $values = array(), $default = '';
 #	public $type, $object, $SQL, $validation, $values, $default;
 	/* Valid param for AutoQuery are autoVisibleSQL, autoInternSQL, autoRequireOBJs */
