@@ -68,8 +68,6 @@ class MDB2_Driver_hnldap extends MDB2_Driver_ldap
         $startTime = microtime(true);
 		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
         self::$runStats['query_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($result))
-            throw new PEAR_Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
         return $result;
 	}
 
@@ -187,9 +185,8 @@ class MDB2_Driver_ldap extends MDB2_Driver_Common
         $this->last_query = $query;
         $result = $this->debug($query, 'query', array('is_manip' => $is_manip, 'when' => 'pre'));
         if ($result) {
-            if (HNDB::MDB2()->isError($result)) {
+            if (HNDB::MDB2()->isError($result))
                 return $result;
-            }
             $query = $result;
         }
         

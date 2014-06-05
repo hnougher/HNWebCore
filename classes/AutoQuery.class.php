@@ -39,14 +39,14 @@ class AutoQuery
 		return $this->tableListUnique;
 	}
 	
-	public function getSQL() {
+	public function getSQL($noLimit = false) {
 		$DB =& HNDB::singleton(constant($this->connection));
-		return $DB->makeAutoQuery($this);
+		return $DB->makeAutoQuery($this, !$noLimit);
 	}
 	
-	public function prepareSQL() {
+	public function prepareSQL($noLimit = false) {
 		$DB =& HNDB::singleton(constant($this->connection));
-		return $DB->prepareAutoQuery($this);
+		return $DB->prepareAutoQuery($this, !$noLimit);
 	}
 }
 

@@ -128,6 +128,14 @@ class HNDB
 		return $result;
 	}
 
+	/** @see MDB2::query() */
+	function &query($query, $types = null, $result_class = true, $result_wrap_class = false) {
+		$result =& query($query, $types, $result_class, $result_wrap_class);
+		if ($MDB2->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		return $result;
+	}
+
 	/**
 	* Highlights an SQL string to look more cool.
 	*
@@ -251,19 +259,22 @@ class WherePart extends FieldPart
 {
 	public $sign;
 	public $value;
-	public $dontEscape;
+	public $dontEscapeField;
+	public $dontEscapeValue;
 	
 	/**
 	* @param string $field The field the restriction is to relate to.
 	* @param string $sign The sign the restriction will use (ie: =, <=, >=, LIKE).
 	* @param string $value Either a field name or a SQL code segment.
-	* @param boolean $dontEscape If $compare is an SQL code segment then set this to true.
+	* @param boolean $dontEscapeValue If $value is an SQL code segment then set this to true.
+	* @param boolean $dontEscapeField If $field is an SQL code segment then set this to true.
 	*/
-	public function __construct($field, $sign, $value, $dontEscape = false) {
+	public function __construct($field, $sign, $value, $dontEscapeValue = false, $dontEscapeField = false) {
 		parent::__construct($field);
 		$this->sign = $sign;
 		$this->value = $value;
-		$this->dontEscape = $dontEscape;
+		$this->dontEscapeField = $dontEscapeField;
+		$this->dontEscapeValue = $dontEscapeValue;
 	}
 }
 

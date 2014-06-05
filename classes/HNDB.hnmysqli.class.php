@@ -29,8 +29,10 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				'total_instances' => 0,
 				'current_instances' => 0,
 				'query_count' => 0,
+				'stmt_prep_count' => 0,
 				'connect_time' => 0,
-				'query_time' => 0);
+				'query_time' => 0,
+				'stmt_prep_time' => 0);
 			self::$runStats =& HNDB::$runStats['mysqli'];
 		}
 		self::$runStats['total_instances']++;
@@ -69,10 +71,19 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
         $startTime = microtime(true);
 		$result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
         self::$runStats['query_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         return $result;
 	}
+
+    /** @see MDB2_Driver_mysqli::prepare */
+    function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
+        self::$runStats['stmt_prep_count']++;
+        $startTime = microtime(true);
+        $stmt =& parent::prepare($query, $types, $result_types, $lobs);
+        self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
+        if (HNDB::MDB2()->isError($stmt))
+            throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
+        return $stmt;
+    }
 
 	/**
 	* This function prepares SQL statements using the table definitions created by OBJs.
@@ -147,8 +158,11 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($fields))
 				throw new Exception('No fields given for INSERT. Cannot continue.');
 			foreach ($tableDef->getInsertableFields() as $fieldName => $fieldDef) {
-				if (($fieldsIndex = array_search($fieldName, $fields)) === false)
+				if (($fieldsIndex = array_search($fieldName, $fields)) === false) {
+					if (isset($fieldDef->default))
+						$sqlFields[] = $fieldDef->SQLWithTable(). '=' .$fieldDef->default;
 					continue;
+				}
 				unset($fields[$fieldsIndex]);
 				$sqlFields[] = $fieldDef->SQLWithTable(). '=:' .$fieldName;
 				$returnTypes[] = $fieldDef->type;
@@ -181,10 +195,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		}
 		
 		#var_dump($SQL, $replaceTypes, $returnTypes);
-		$stmt = $this->prepare($SQL, $replaceTypes, $returnTypes);
-		if (HNDB::MDB2()->isError($stmt))
-			throw new Exception('Invalid statement ' . (DEBUG ? $SQL : 'was created'));
-		return $stmt;
+		return $this->prepare($SQL, $replaceTypes, $returnTypes);
 	}
 	
 	public function prepareMOBQuery($tableDef, $allFields, $whereList = false, $orderParts = false) {
@@ -219,7 +230,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				}
 			}
 			if (!empty($orderParts))
-				throw new Exception('Field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
+				throw new Exception('Order field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
 		} elseif (isset($orderParts) && $orderParts == 'RAND()') {
 			$orderFields[] = 'RAND()';
 		} else { // Default ordering is by keys
@@ -327,15 +338,19 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		$ret = '';
 		foreach ($parts as $part) {
 			if ($part instanceof WherePart) {
+				if ($part->dontEscapeField) {
+					$ret .= $part->field;
+				} else {
 				if (!isset($tableDef->fields[$part->field]))
 					throw new Exception('Invalid field "' .$part->field. '" in where part');
 				$ret .= $tableDef->fields[$part->field]->SQLWithTable($tableAlias);
+				}
 				
 				if (!in_array($part->sign, self::$validWhereSigns))
 					throw new Exception('Invalid sign "' .$part->sign. '" in where part');
-				$ret .= $part->sign;
+				$ret .= ' ' .$part->sign. ' ';
 				
-				if ($part->dontEscape) {
+				if ($part->dontEscapeValue) {
 					$ret .= $part->value;
 				} else {
 					if (isset($tableDef->fields[$part->value]))

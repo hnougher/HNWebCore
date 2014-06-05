@@ -65,11 +65,7 @@ echo '[';
 foreach ($queryQueue as $queryNumer => $QUERY) {
 	$DB =& HNDB::singleton(constant('HNDB_' .$QUERY['def'][0]));
 	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
-	if (HNDB::MDB2()->isError($stmt))
-		die('Error: Statement failed to prepare.' . (DEBUG ? $stmt->getUserInfo() : $stmt->getMessage()));
 	$result = $stmt->execute($QUERY['param']);
-	if (HNDB::MDB2()->isError($result))
-		die('Error: Statement failed to execute.' . (DEBUG ? $result->getUserInfo() : $result->getMessage()));
 	
 	if ($queryNumer > 0)
 		echo ',';

@@ -63,8 +63,10 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
     /** @see MDB2_Driver_oci8::connect */
     function connect() {
         $startTime = microtime(true);
+        $oldType = $this->phptype;
         $this->phptype = 'oci8';
         $result = parent::connect();
+        $this->phptype = $oldType;
         self::$runStats['connect_time'] += microtime(true) - $startTime;
         if (HNDB::MDB2()->isError($result))
             throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
@@ -77,23 +79,25 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
         $startTime = microtime(true);
         $result =& parent::_doQuery($query, $is_manip, $connection, $database_name);
         self::$runStats['query_time'] += microtime(true) - $startTime;
-        if (HNDB::MDB2()->isError($result))
-            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         return $result;
     }
 
     /** @see MDB2_Driver_oci8::prepare */
+    // NOTE: phptype must be overridden to make MDB2 use our Statement class.
     function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
         $oldType = $this->phptype;
         $this->phptype = 'hnoci8';
         
         self::$runStats['stmt_prep_count']++;
         $startTime = microtime(true);
-        $result =& parent::prepare($query, $types, $result_types, $lobs);
+        $stmt =& parent::prepare($query, $types, $result_types, $lobs);
         self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
+        if (HNDB::MDB2()->isError($stmt))
+            throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
         
+        #if ($this->phptype != 'hnoci8') throw new Exception('MDB2 phptype has been unexpectedly changed to ' .$this->phptype);
         $this->phptype = $oldType;
-        return $result;
+        return $stmt;
     }
 
 	/**
@@ -171,8 +175,11 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 			if (empty($fields))
 				throw new Exception('No fields given for INSERT. Cannot continue.');
 			foreach ($tableDef->getInsertableFields() as $fieldName => $fieldDef) {
-				if (($fieldsIndex = array_search($fieldName, $fields)) === false)
+				if (($fieldsIndex = array_search($fieldName, $fields)) === false) {
+					if (isset($fieldDef->default))
+						$sqlFields[$fieldDef->SQLWithTable()] = $fieldDef->default;
 					continue;
+				}
 				unset($fields[$fieldsIndex]);
 				$sqlFields[$fieldDef->SQLWithTable()] = ':'.$fieldName;
 				$returnTypes[] = $fieldDef->type;
@@ -206,10 +213,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		}
 		
 		#var_dump($SQL, $replaceTypes, $returnTypes);
-		$stmt = $this->prepare($SQL, $replaceTypes, $returnTypes);
-		if (HNDB::MDB2()->isError($stmt))
-			throw new Exception('Invalid statement ' . (DEBUG ? $SQL : 'was created'));
-		return $stmt;
+		return $this->prepare($SQL, $replaceTypes, $returnTypes);
 	}
 	
 	public function prepareMOBQuery($tableDef, $allFields, $whereList = false, $orderParts = false) {
@@ -243,7 +247,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 				}
 			}
 			if (!empty($orderParts))
-				throw new Exception('Field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
+				throw new Exception('Order field "' .implode('","', array_keys($orderParts)). '" is not readable in object "' .$tableDef->table. '".');
 		} elseif (isset($orderParts) && $orderParts == 'RAND()') {
 			$orderFields[] = 'RAND()';
 		} else { // Default ordering is by keys
@@ -258,7 +262,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		return $this->prepare($SQL, $returnTypes);
 	}
 	
-	public function makeAutoQuery($autoQuery) {
+	public function makeAutoQuery($autoQuery, $hasLimit) {
 		if (!($autoQuery instanceof AutoQuery))
 			throw new Exception('Was not passed an AutoQuery');
 		
@@ -275,7 +279,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		// Where filter
 		$where = array();
 		foreach ($autoQuery->getTableList() as $AQT) {
-			$wherePart = $this->wherePrinter($AQT->getTableDef(), $AQT->getWhereList()->get(), '"'.$AQT->getTableAlias().'"');
+			$wherePart = $this->wherePrinter($AQT->getTableDef(), $AQT->getWhereList()->get(), $AQT->getTableAlias());
 			if (!empty($wherePart))
 				$where[] = $wherePart;
 		}
@@ -284,19 +288,21 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		$groups = $this->AQOrderPrinter($autoQuery, 'group');
 		$orders = $this->AQOrderPrinter($autoQuery, 'order');
 		
-		$SQL = sprintf('SELECT * FROM (SELECT %s FROM %s%s%s%s) WHERE ROWNUM>:limitstart AND ROWNUM<=(:limitstart + :limitcount)',
+		$SQL = sprintf('%sSELECT %s FROM %s%s%s%s%s',
+			($hasLimit ? 'SELECT * FROM (' : ''),
 			$selectedFields,
 			implode(',', $fromClauseBlocks),
 			(empty($where) ? '' : ' WHERE ' .implode(' AND ', $where)),
 			(empty($groups) ? '' : ' GROUP BY ' .$groups),
-			(empty($orders) ? '' : ' ORDER BY ' .$orders)
+			(empty($orders) ? '' : ' ORDER BY ' .$orders),
+			($hasLimit ? ') WHERE ROWNUM>:limitstart AND ROWNUM<=(:limitstart + :limitcount)' : '')
 			);
 		
 		return $SQL;
 	}
 	
-	public function prepareAutoQuery($autoQuery) {
-		$SQL = $this->makeAutoQuery($autoQuery);
+	public function prepareAutoQuery($autoQuery, $hasLimit) {
+		$SQL = $this->makeAutoQuery($autoQuery, $hasLimit);
 		return $this->prepare($SQL);
 	}
 	
@@ -305,9 +311,9 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		foreach ($autoQuery->getTableList() as $AQT) {
 			foreach ($AQT->getFieldList()->get() as $fieldPart) {
 				if ($fieldPart->field instanceof _DefinitionField) {
-					$SQL = $fieldPart->field->SQLWithTable('"'.$AQT->getTableAlias().'"');
+					$SQL = $fieldPart->field->SQLWithTable($AQT->getTableAlias());
 					if ($fieldPart->field->virtName != substr($SQL, 1, -1))
-						$SQL .= ' AS "' .$fieldPart->field->virtName. '"';
+						$SQL .= ' "' .$fieldPart->field->virtName. '"';
 				} else {
 					$SQL = $fieldPart->field;
 				}
@@ -322,7 +328,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		$block = (empty($linkDefs) ? '' : '(');
 		$block .= $AQT->getTableDef()->table;
 		if ($AQT->getTableDef()->table != $AQT->getTableAlias())
-			$block .= ' "'.$AQT->getTableAlias().'"';
+			$block .= ' '.$AQT->getTableAlias();
 		foreach ($linkDefs as $linkDef) {
 			$block .= ' '.$linkDef[0].' '; // JOIN
 			$block .= $this->AQFromPrinter($linkDef[2]); // remote table and joins
@@ -350,15 +356,19 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 		$ret = '';
 		foreach ($parts as $part) {
 			if ($part instanceof WherePart) {
+				if ($part->dontEscapeField) {
+					$ret .= $part->field;
+				} else {
 				if (!isset($tableDef->fields[$part->field]))
 					throw new Exception('Invalid field "' .$part->field. '" in where part');
 				$ret .= $tableDef->fields[$part->field]->SQLWithTable($tableAlias);
+				}
 				
 				if (!in_array($part->sign, self::$validWhereSigns))
 					throw new Exception('Invalid sign "' .$part->sign. '" in where part');
-				$ret .= $part->sign;
+				$ret .= ' ' .$part->sign. ' ';
 				
-				if ($part->dontEscape) {
+				if ($part->dontEscapeValue) {
 					$ret .= $part->value;
 				} else {
 					if (isset($tableDef->fields[$part->value]))
@@ -392,6 +402,8 @@ class MDB2_Statement_hnoci8 extends MDB2_Statement_oci8
         MDB2_Driver_hnoci8::$runStats['stmt_exec_count']++;
         $startTime = microtime(true);
         $result =& parent::_execute($result_class, $result_wrap_class);
+        if (HNDB::MDB2()->isError($result))
+            throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
         MDB2_Driver_hnoci8::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
         return $result;
     }

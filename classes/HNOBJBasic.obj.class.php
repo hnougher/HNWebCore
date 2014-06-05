@@ -364,8 +364,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 			
 			#var_dump(static::$selectStatement->query, static::$selectStatement->positions, static::$selectStatement->values, $ids);
 			$result = static::$selectStatement->execute($ids);
-			if (HNDB::MDB2()->isError($result))
-				throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
 			if ($result->numRows() == 1) {
 				$data =& $result->fetchRow(MDB2_FETCHMODE_ASSOC);
 				if (!is_array($data))
@@ -479,8 +477,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		
 		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
 		$result = $stmt->execute($replacements);
-		if (HNDB::MDB2()->isError($result))
-			throw new Exception(DEBUG ? $result->getUserInfo() : 'DB operation failed');
 		if ($result == 0)
 			throw new Exception('No rows affected by ' .$type);
 		
@@ -527,8 +523,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$stmt =& $DB->prepareOBJQuery('DELETE', $this::$tableDef);
 		
 		$result = $stmt->execute($replacements);
-		if (HNDB::MDB2()->isError($result))
-			throw new Exception('DB operation failed');
 		if ($result == 0)
 			throw new Exception('No rows affected by DELETE');
 		
