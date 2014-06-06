@@ -44,6 +44,16 @@ class AutoQuery
 		return $DB->makeAutoQuery($this, !$noLimit);
 	}
 	
+	public function getAJAXCode($noLimit = false, $paramTypes = array()) {
+		$DB =& HNDB::singleton(constant($this->connection));
+		$sql = $DB->makeAutoQuery($this, !$noLimit);
+		if (!$noLimit) {
+			$paramTypes[] = 'integer';
+			$paramTypes[] = 'integer';
+		}
+		return StoreAJAXQuery(substr($this->connection,5), $sql, $paramTypes);
+	}
+	
 	public function prepareSQL($noLimit = false) {
 		$DB =& HNDB::singleton(constant($this->connection));
 		return $DB->prepareAutoQuery($this, !$noLimit);
