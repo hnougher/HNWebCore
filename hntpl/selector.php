@@ -232,6 +232,7 @@ class HNTPLSelector extends HNTPLCore
 
 <script type="text/javascript">
 (function(){
+	var rowDispInterval = null;
 	var setting = <?php echo json_encode(array(
 		'fieldNames' => $this->fieldNames,
 		'noResultText' => $this->noResultText,
@@ -243,7 +244,7 @@ class HNTPLSelector extends HNTPLCore
 	var selector_delay = function() {
 		if (selector_timeout)
 			window.clearTimeout(selector_timeout);
-		selector_timeout = window.setTimeout(selector, 250);
+		selector_timeout = window.setTimeout(selector, 200);
 	};
 	var selector = function(e) {
 		window.clearTimeout(selector_timeout);
@@ -256,49 +257,76 @@ class HNTPLSelector extends HNTPLCore
 		return false;
 	};
 	var selector2 = function(data) {
-		var $base = $('<div id="content"/>');
+		if (rowDispInterval != null)
+			clearInterval(rowDispInterval);
+		
+		var $base = $selector.find("#content");
 		if (data.length == 0) {
-			var $i = $("<i/>");
-			$i.html(setting.noResultText);
-			$base.html($i);
+			$base.empty();
+			$("<i/>").appendTo($base)
+				.html(setting.noResultText);
 		} else {
 			var rowdata = data[0];
 			if (rowdata.length == 0) {
-				var $i = $("<i/>");
-				$i.html(setting.noResultText);
-				$base.html($i);
+				$base.empty();
+				$("<i/>").appendTo($base)
+					.html(setting.noResultText);
 			} else {
-				var $table = $("<table/>");
-				$base.append($table);
-				
-				// Column Headings
-				if (setting.fieldNames.length > 0) {
-					$tablehead = $('<tr id="tablehead"/>');
-					<?php echo $this->headDisplayMethod; ?>($tablehead, setting.fieldNames);
-					$table.append($tablehead);
-				}
-				
-				for (var i = 0; i < rowdata.length; i++) {
-					var $tr = $("<tr/>");
-					$table.append($tr);
-
-					// If IE6 Hacks Enabled
-					if (typeof(window["IERowMouseOver"]) != "undefined" && typeof(window["IERowMouseOut"]) != "undefined"){ 
-						$tr.on("mouseover", IERowMouseOver);
-						$tr.on("mouseout", IERowMouseOut);
-						$tr.css("cursor", "pointer");
+				var existing = ($base.find('table').length != 0);
+				if (!existing) {
+					var $table = $('<table/>').appendTo($base);
+					var $thead = $('<thead/>').appendTo($table);
+					$('<tbody/>').appendTo($table);
+					
+					// Column Headings
+					if (setting.fieldNames.length > 0) {
+						$tablehead = $('<tr id="tablehead"/>').appendTo($thead);
+						<?php echo $this->headDisplayMethod; ?>($tablehead, setting.fieldNames);
 					}
-
+					
 					<?php if ($this->uri !== false || $this->rowOnclickMethod != "rowOnclickDefault") { ?>
-					(function(){
-						// To copy rowID for each row
-						var rowID = rowdata[i][0];
-						$tr.on("click", function(e){<?php echo $this->rowOnclickMethod; ?>(e, rowID)});
-					})();
-					$tr.addClass("clickable");
+					$table.on("click", "tbody tr", <?php echo $this->rowOnclickMethod; ?>);
 					<?php } ?>
-					<?php echo $this->rowDisplayMethod; ?>($tr, rowdata[i]);
 				}
+				
+				var i = 0;
+				var $tbody = $base.find('tbody');
+				var $oldRows = $tbody.children();
+				for (var j = rowdata.length; j < $oldRows.length; j++)
+					$oldRows.eq(j).remove();
+				
+				function outputRows() {
+					var stopIterAt = (new Date).getTime() + 15;
+					for (; i < rowdata.length; i++) {
+						if ((new Date).getTime() >= stopIterAt)
+							return;
+						
+						var $tr;
+						if ($oldRows.length > i) {
+							$tr = $oldRows.eq(i);
+							$tr.empty();
+						} else {
+							$tr = $("<tr/>").appendTo($tbody);
+						}
+						$tr.data("rowid", rowdata[i][0]);
+
+						// If IE6 Hacks Enabled
+						if (typeof(window["IERowMouseOver"]) != "undefined" && typeof(window["IERowMouseOut"]) != "undefined"){ 
+							$tr.on("mouseover", IERowMouseOver);
+							$tr.on("mouseout", IERowMouseOut);
+							$tr.css("cursor", "pointer");
+						}
+
+						<?php if ($this->uri !== false || $this->rowOnclickMethod != "rowOnclickDefault") { ?>
+						$tr.addClass("clickable");
+						<?php } ?>
+						<?php echo $this->rowDisplayMethod; ?>($tr, rowdata[i]);
+					}
+					
+					clearInterval(rowDispInterval);
+					rowDispInterval = null;
+				}
+				rowDispInterval = setInterval(outputRows, 10);
 			}
 			
 			if (data.length >= 2) {
@@ -308,10 +336,10 @@ class HNTPLSelector extends HNTPLCore
 		}
 		
 		<?php if ($this->type & self::TYPE_PAGE) echo "pageCtrlUpdate();"; ?>
-		$selector.find("#content").replaceWith($base);
 	};
 	<?php if ($this->uri !== false && $this->rowOnclickMethod == "rowOnclickDefault") { ?>
-	function rowOnclickDefault(e, rowID) {
+	function rowOnclickDefault(e) {
+		var rowID = $(e.target).closest("tr").data("rowid");
 		document.location = setting.uri.replace("--ID--", rowID);
 	};
 	<?php } ?>
@@ -352,11 +380,8 @@ class HNTPLSelector extends HNTPLCore
 	<?php } ?>
 	<?php if ($this->rowDisplayMethod == "rowDisplayDefault") { ?>
 	function rowDisplayDefault($tr, rowdata) {
-		for (var i = 1; i < rowdata.length; i++) {
-			var $td = $("<td/>");
-			$tr.append($td);
-			$td.html(rowdata[i]);
-		}
+		for (var i = 1; i < rowdata.length; i++)
+			$("<td/>").appendTo($tr).html(rowdata[i]);
 	};
 	<?php } ?>
 	<?php if ($this->type & self::TYPE_PAGE) { ?>
