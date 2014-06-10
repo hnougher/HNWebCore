@@ -241,21 +241,41 @@ class HNTPLSelector extends HNTPLCore
 	var $selector = $("#selector<?php echo $this->queryCode; ?>");
 	var $tablehead = false;
 	var selector_timeout = null;
+	var lastCountUpdateAt = 0;
+	
 	var selector_delay = function() {
 		if (selector_timeout)
 			window.clearTimeout(selector_timeout);
 		selector_timeout = window.setTimeout(selector, 200);
-	};
-	var selector = function(e) {
+	}
+	
+	var selector = function(dontNeedTotal) {
 		window.clearTimeout(selector_timeout);
 		if ($selector.find(".srchp").val() != $selector.find("#srch").val()) {
 			$selector.find(".srchp").val($selector.find("#srch").val());
 			$selector.find("#rowoffset").val(0);
 		}
-		$.post("<?php echo SERVER_ADDRESS; ?>/ajax.php", $selector.serialize(), selector2, "json");
-		if (e) e.preventDefault();
-		return false;
-	};
+		var paramsTmp = $selector.serializeArray();
+		var params = {};
+		for (var i = 0; i < paramsTmp.length; i++) {
+			var name = paramsTmp[i].name;
+			var value = paramsTmp[i].value;
+			
+			if (name in params) {
+				if (!(params[name] instanceof Array))
+					params[name] = [params[name]];
+				params[name].push(value);
+			} else {
+				params[name] = value;
+			}
+		}
+		if (dontNeedTotal && 'q1' in params) {
+			delete params['q1'];
+			delete params['p1[]'];
+		}
+		$.post("<?php echo SERVER_ADDRESS; ?>/ajax.php", params, selector2, "json");
+	}
+	
 	var selector2 = function(data) {
 		if (rowDispInterval != null)
 			clearInterval(rowDispInterval);
@@ -331,18 +351,21 @@ class HNTPLSelector extends HNTPLCore
 			
 			if (data.length >= 2) {
 				// Page Information
+				lastCountUpdateAt = (new Date).getTime();
 				$selector.find("#totalrows").val(data[1][0][0]);
 			}
 		}
 		
 		<?php if ($this->type & self::TYPE_PAGE) echo "pageCtrlUpdate();"; ?>
-	};
+	}
+	
 	<?php if ($this->uri !== false && $this->rowOnclickMethod == "rowOnclickDefault") { ?>
 	function rowOnclickDefault(e) {
 		var rowID = $(e.target).closest("tr").data("rowid");
 		document.location = setting.uri.replace("--ID--", rowID);
-	};
+	}
 	<?php } ?>
+	
 	<?php if ($this->headDisplayMethod == "headDisplayDefault") { ?>
 	function headDisplayDefault($tr, fieldNames) {
 		var curOrderIndex = $(".orderp").val();
@@ -364,8 +387,9 @@ class HNTPLSelector extends HNTPLCore
 			<?php } ?>
 			$th.prepend(fieldNames[i]);
 		}
-	};
+	}
 	<?php } ?>
+	
 	<?php if ($this->type & self::TYPE_ORDER) { ?>
 	function columnOrderSet(e) {
 		var event = jQuery.Event("orderchange");
@@ -378,12 +402,14 @@ class HNTPLSelector extends HNTPLCore
 		selector();
 	}
 	<?php } ?>
+	
 	<?php if ($this->rowDisplayMethod == "rowDisplayDefault") { ?>
 	function rowDisplayDefault($tr, rowdata) {
 		for (var i = 1; i < rowdata.length; i++)
 			$("<td/>").appendTo($tr).html(rowdata[i]);
-	};
+	}
 	<?php } ?>
+	
 	<?php if ($this->type & self::TYPE_PAGE) { ?>
 	function pageCtrl(type) {
 		var $rowoffset = $selector.find("#rowoffset");
@@ -422,8 +448,10 @@ class HNTPLSelector extends HNTPLCore
 			return; // Cant go here
 		
 		$rowoffset.val(rowoffset);
-		selector();
-	};
+		// No count update needed within 10 sec to save some DB processing
+		selector((new Date).getTime() - lastCountUpdateAt < 10000);
+	}
+	
 	function pageCtrlUpdate() {
 		var text = "<?php echo str_replace('"', '\"', $this->pageCtrlText); ?>";
 		var showBar = "<?php echo $this->pageCtrlMode; ?>";
@@ -461,7 +489,7 @@ class HNTPLSelector extends HNTPLCore
 			$selector.find(".pageCtrlNext,.pageCtrlLast").attr("disabled", "disabled");
 		else
 			$selector.find(".pageCtrlNext,.pageCtrlLast").removeAttr("disabled");
-	};
+	}
 	<?php } ?>
 
 	$(document).ready(function() {
@@ -473,7 +501,7 @@ class HNTPLSelector extends HNTPLCore
 		$selector.on("click", ".pageCtrlNext", function(){pageCtrl("next");return false});
 		$selector.on("click", ".pageCtrlLast", function(){pageCtrl("last");return false});
 		<?php } ?>
-
+		
 		// Preload
 		selector();
 	});
