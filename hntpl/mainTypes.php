@@ -161,6 +161,18 @@ class HNTPLMainTypes extends HNTPLCore
 	}
 	
 	/**
+	* Adds a new filter.
+	* 
+	* @see HNTPLFilter::__construct()
+	*/
+	public function new_filter($filterName) {
+		require_once TEMPLATE_PATH. '/filter.php';
+		$content = new HNTPLFilter($filterName);
+		$this->new_raw($content);
+		return $content;
+	}
+
+	/**
 	* Adds a new checkbox.
 	* 
 	* @param string $id The checkbox name and id value.
