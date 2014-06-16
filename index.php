@@ -117,6 +117,9 @@ function StoreAJAXQuery($connection, $sql, $paramTypes = array(), $resultTypes =
 */
 class Loader
 {
+	/// Stores the total time used loading classes/scripts before processing
+	public static $loadingTime = 0;
+
 	public static function fixPath($path) {
 		if (PHP_OS_WINDOWS) $path = str_replace('\\', '/', $path);
 		return $path;
@@ -129,6 +132,7 @@ class Loader
 	* @uses run_script()
 	*/
 	public static function initiate() {
+		self::$loadingTime = microtime(1) - $GLOBALS['ScriptStartTime'];
 		ob_start();
 
 		// Set the Default Timezone
@@ -242,11 +246,16 @@ class Loader
 	}
 
 	public static function get_stats() {
+		$preOutputTime = microtime(1) - $GLOBALS['ScriptStartTime'];
+		
 		$OBJStats = HNOBJBasic::getObjectCounts();
 		$MOBStats = HNMOBBasic::getObjectCounts();
-		$out = sprintf("<hr/><b>User Roles at Start:</b> %s\n<b>Pre Output Time:</b> %1.4f sec\n<b>Memory Used At End, Peak:</b> %01.1f MB, %01.1f MB",
+		$out = sprintf("<hr/><b>User Roles at Start:</b> %s\n<b>Time Loading, Pre Output:</b> %1.4f sec (%1.0f%%), %1.4f sec (%1.0f%%)\n<b>Memory Used At End, Peak:</b> %01.1f MiB, %01.1f MiB",
 			(isset($GLOBALS['UserRolesAtStart']) ? implode(', ', array_keys($GLOBALS['UserRolesAtStart'])) : 'all'),
-			microtime(1) - $GLOBALS['ScriptStartTime'],
+			self::$loadingTime,
+			(self::$loadingTime / $preOutputTime) * 100,
+			$preOutputTime,
+			(($preOutputTime - self::$loadingTime) / $preOutputTime) * 100,
 			memory_get_usage() / 1024 / 1024,
 			memory_get_peak_usage() / 1024 / 1024
 			);
@@ -294,6 +303,21 @@ class Loader
 			($OBJCacheStats[3] == 0 ? 0 : $OBJCacheStats[3] / $OBJCacheStats[2] * 100),
 			$OBJCacheStats[4]
 			);
+		
+		// Included files information
+		$filepaths = get_included_files();
+		$filesizes = array();
+		foreach ($filepaths as $filepath)
+			$filesizes[] = filesize($filepath);
+		array_multisort($filesizes, SORT_DESC, $filepaths);
+		
+		$out .= sprintf("<hr/><b>Included Files (by size):</b> %01.1f KiB",
+			array_sum($filesizes) / 1024);
+		for ($i = 0; $i < count($filepaths); $i++) {
+			$out .= sprintf("\n\t(%01.1f KiB) %s",
+				$filesizes[$i] / 1024,
+				$filepaths[$i]);
+		}
 		
 		return $out;
 	}

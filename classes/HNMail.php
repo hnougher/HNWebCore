@@ -26,8 +26,11 @@ class HNMail
 			throw new Exception('SERVER_EMAIL constant is not defined!');
 		
 		if (!isset($Mail)) {
+			$startTime = microtime(1);
 			require_once 'Mail.php';
 			require_once 'Mail/mime.php';
+			if (class_exists('Loader'))
+				Loader::$loadingTime += microtime(1) - $startTime;
 			
 			// See: http://pear.php.net/manual/en/package.mail.mail.factory.php
 			$params = array();

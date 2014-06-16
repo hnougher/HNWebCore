@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /**
-* This scipt is called for collecting results via recorded MySQLi Statements.
+* This script is called for collecting results via recorded MySQLi Statements.
 * It is optimised for result collecting speed while still being secure from attacks.
 * 
 * @author Hugh Nougher <hughnougher@gmail.com>
@@ -63,9 +63,19 @@ unset($ACTPARAM, $REQPARAM, $query, $i, $j);
 echo '[';
 
 foreach ($queryQueue as $queryNumer => $QUERY) {
-	$DB =& HNDB::singleton(constant('HNDB_' .$QUERY['def'][0]));
-	$stmt =& $DB->prepare($QUERY['def'][1], $QUERY['def'][2], $QUERY['def'][3]);
-	$result = $stmt->execute($QUERY['param']);
+	list($CONN, $SQL, $PARAMTYPES, $RETTYPES) = $QUERY['def'];
+	$PARAMS = $QUERY['param'];
+	
+	// Early fix of params to help avoid strange MDB2 errors
+	// (it was seen that having a query with param use :0 :1 :1 LIMIT :2,:3 resulted in :3 being string)
+	foreach ($PARAMTYPES as $key => $val) {
+		if (in_array($val, array('integer')))
+			$PARAMS[$key] = (int) $PARAMS[$key];
+	}
+	
+	$DB =& HNDB::singleton(constant('HNDB_' .$CONN));
+	$stmt =& $DB->prepare($SQL, $PARAMTYPES, $RETTYPES);
+	$result = $stmt->execute($PARAMS);
 	
 	if ($queryNumer > 0)
 		echo ',';

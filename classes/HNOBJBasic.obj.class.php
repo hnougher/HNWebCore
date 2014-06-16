@@ -79,8 +79,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public static function loadClassFor($object) {
 		if (empty($object))
 			throw new Exception('No object given');
-		if (!class_exists('OBJ' . $object))
+		if (!class_exists('OBJ' . $object)) {
+			$startTime = microtime(1);
 			require_once CLASS_PATH. '/OBJ.' .$object. '.class.php';
+			if (class_exists('Loader'))
+				Loader::$loadingTime += microtime(1) - $startTime;
+		}
 	}
 
 	/**

@@ -410,11 +410,6 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 
 class MDB2_Statement_hnoci8 extends MDB2_Statement_oci8
 {
-	/*function __construct(&$db, &$statement, $positions, $query, $types, $result_types, $is_manip = false, $limit = null, $offset = null) {
-		$db->phpType = 'oci8';
-		parent::__construct($db, $statement, $positions, $query, $types, $result_types, $is_manip, $limit, $offset);
-	}*/
-
 	/** @see MDB2_Statement_oci8::_execute */
 	function &_execute($result_class = true, $result_wrap_class = false) {
 		MDB2_Driver_hnoci8::$runStats['stmt_exec_count']++;

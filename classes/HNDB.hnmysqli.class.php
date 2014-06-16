@@ -30,9 +30,11 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				'current_instances' => 0,
 				'query_count' => 0,
 				'stmt_prep_count' => 0,
+				'stmt_exec_count' => 0,
 				'connect_time' => 0,
 				'query_time' => 0,
-				'stmt_prep_time' => 0);
+				'stmt_prep_time' => 0,
+				'stmt_exec_time' => 0);
 			self::$runStats =& HNDB::$runStats['mysqli'];
 		}
 		self::$runStats['total_instances']++;
@@ -58,10 +60,13 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 	/** @see MDB2_Driver_mysqli::connect */
 	function connect() {
 		$startTime = microtime(true);
+		$oldType = $this->phptype;
+		$this->phptype = 'oci8';
 		$result = parent::connect();
+		$this->phptype = $oldType;
 		self::$runStats['connect_time'] += microtime(true) - $startTime;
 		if (HNDB::MDB2()->isError($result))
-			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage(), $result);
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
 		return $result;
 	}
 
@@ -75,13 +80,20 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 	}
 
 	/** @see MDB2_Driver_mysqli::prepare */
+	// NOTE: phptype must be overridden to make MDB2 use our Statement class.
 	function &prepare($query, $types = null, $result_types = null, $lobs = array()) {
+		$oldType = $this->phptype;
+		$this->phptype = 'hnmysqli';
+		
 		self::$runStats['stmt_prep_count']++;
 		$startTime = microtime(true);
 		$stmt =& parent::prepare($query, $types, $result_types, $lobs);
 		self::$runStats['stmt_prep_time'] += microtime(true) - $startTime;
 		if (HNDB::MDB2()->isError($stmt))
 			throw new Exception(DEBUG ? $stmt->getUserInfo() : $stmt->getMessage());
+		
+		#if ($this->phptype != 'hnoci8') throw new Exception('MDB2 phptype has been unexpectedly changed to ' .$this->phptype);
+		$this->phptype = $oldType;
 		return $stmt;
 	}
 
@@ -386,5 +398,19 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			}
 		}
 		return $ret;
+	}
+}
+
+class MDB2_Statement_hnmysqli extends MDB2_Statement_mysqli
+{
+	/** @see MDB2_Statement_mysqli::_execute */
+	function &_execute($result_class = true, $result_wrap_class = false) {
+		MDB2_Driver_hnmysqli::$runStats['stmt_exec_count']++;
+		$startTime = microtime(true);
+		$result =& parent::_execute($result_class, $result_wrap_class);
+		if (HNDB::MDB2()->isError($result))
+			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		MDB2_Driver_hnmysqli::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
+		return $result;
 	}
 }

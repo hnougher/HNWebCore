@@ -30,14 +30,12 @@ class HNDB
 	public static function MDB2() {
 		static $MDB2;
 		if (!isset($MDB2)) {
-			HNDB::$runStats['mdb2'] = array();
-			
 			$startTime = microtime(true);
 			require_once 'MDB2.php';
 			require_once 'PEAR/Exception.php';
 			$MDB2 = new MDB2();
-			
-			HNDB::$runStats['mdb2']['init'] = microtime(true) - $startTime;
+			if (class_exists('Loader'))
+				Loader::$loadingTime += microtime(true) - $startTime;
 		}
 		return $MDB2;
 	}
@@ -79,8 +77,12 @@ class HNDB
 			
 		}
 		
-		if (in_array($dsn['phptype'], array('hnmysqli','hnoci8','hnldap')))
+		if (in_array($dsn['phptype'], array('hnmysqli','hnoci8','hnldap'))) {
+			$startTime = microtime(1);
 			require_once CLASS_PATH . '/HNDB.' . $dsn['phptype'] . '.class.php';
+			if (class_exists('Loader'))
+				Loader::$loadingTime += microtime(1) - $startTime;
+		}
 		return $dsn;
 	}
 
@@ -90,12 +92,10 @@ class HNDB
 		$options['persistent'] = true;
 		$MDB2 = HNDB::MDB2();
 		
-		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->factory($dsn, $options);
 		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
-		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 
@@ -105,12 +105,10 @@ class HNDB
 		$options['persistent'] = true;
 		$MDB2 = HNDB::MDB2();
 		
-		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result =& self::MDB2()->connect($dsn, $options);
 		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
-		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 
@@ -120,12 +118,10 @@ class HNDB
 		$options['persistent'] = true;
 		$MDB2 = HNDB::MDB2();
 		
-		$startTime = microtime(true);
 		$dsn = self::checkCustomDSN($dsn);
 		$result = self::MDB2()->singleton($dsn, $options);
 		if ($MDB2->isError($result))
 			throw new HNDBException($result->getMessage(), HNDBException::CANT_CONNECT);
-		HNDB::$runStats['mdb2']['connect'] = microtime(true) - $startTime;
 		return $result;
 	}
 

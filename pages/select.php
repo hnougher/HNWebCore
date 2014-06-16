@@ -5,8 +5,7 @@
  */
 
 function checkRequiredReadable($object, $requiredFields = array()) {
-	require_once CLASS_PATH.'/OBJ.'.$object.'.class.php';
-	$tableDef = call_user_func(array('OBJ'.$object, 'getTableDef'));
+	$tableDef =& HNOBJBasic::getTableDefFor($object);
 	$readable = array_keys($tableDef->getReadableFields());
 	return (count(array_diff($requiredFields, $readable)) == 0);
 }
@@ -22,15 +21,15 @@ case 'user':
 		`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`
 		FROM `user`
 		WHERE
-			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(?,""),"%")
+			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:0,""),"%")
 		ORDER BY
-			ELT(?,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) ASC,
-			ELT(?*-1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) DESC,
+			ELT(:1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) ASC,
+			ELT(:1*-1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) DESC,
 			`username`
-		LIMIT ?,?', array('text','integer','integer','integer','integer'));
+		LIMIT :2,:3', array('text','integer','integer','integer'));
 	$queryCount = StoreAJAXQuery('DEFAULT', 'SELECT COUNT(*)
 		FROM `user`
-		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(?,""),"%")
+		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:0,""),"%")
 		', array('text'));
 	break;
 
