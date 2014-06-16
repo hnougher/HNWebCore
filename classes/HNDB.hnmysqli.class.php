@@ -414,3 +414,7 @@ class MDB2_Statement_hnmysqli extends MDB2_Statement_mysqli
 		return $result;
 	}
 }
+
+HNDB::MDB2()->loadClass('MDB2_Driver_Datatype_mysqli');
+/** phptyped class for missing some internal prepare errors */
+class MDB2_Driver_Datatype_hnmysqli extends MDB2_Driver_Datatype_mysqli {}

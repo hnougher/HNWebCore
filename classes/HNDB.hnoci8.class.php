@@ -421,3 +421,7 @@ class MDB2_Statement_hnoci8 extends MDB2_Statement_oci8
 		return $result;
 	}
 }
+
+HNDB::MDB2()->loadClass('MDB2_Driver_Datatype_oci8');
+/** phptyped class for missing some internal prepare errors */
+class MDB2_Driver_Datatype_hnoci8 extends MDB2_Driver_Datatype_oci8 {}
