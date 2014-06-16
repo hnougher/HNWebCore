@@ -84,19 +84,11 @@ class ErrorHandler
 			die;
 	}
 	
-	/*private static function replaceFieldList($str) {
-		$start = -1;
-		$ostr = $str;
-		while (($start = strpos($str, 'Object (', $start + 1)) !== false) {
-			$start += 7;
-			$part1 = substr($str, 0, $start);
-			$part2 = substr($str, $start);
-			$str = $part1 . preg_replace("#\s\(((?>[^\(\)]+)|(?R))*\)#x", "*", $part2, 1);
-			if ($start >= strlen($str))
-				break;
-		}
-		return $ostr . "\n" . $str;
-	}*/
+	/**
+	* Cleans up dumps and stack traces for tidier output.
+	* 
+	* @param $str is the string to be cleaned up.
+	*/
 	public static function replaceFieldList($str) {
 		// Strip contents of Objects and Arrays
 		$m1 = '\(\.{0,3}\)'; // Match (...) and (..) and (.) and ()
@@ -107,12 +99,18 @@ class ErrorHandler
 			$oldStrLen = strlen($str);
 			$str = preg_replace($exp, "$1*", $str);
 		} while ($oldStrLen != strlen($str));
-		
-		// Replace built in passwords
-#		$str = str_replace(MYSQL_PASS, '********', $str);
 		return $str;
 	}
 	
+	/**
+	* This is a crash handler function for HNWebCore.
+	* A crash in this case is when there is a fatal error that happens after this
+	* file has finished getting loaded/included.
+	* Therefore any errors in this file or in the files included before this will
+	* not be caught by this.
+	* 
+	* @param $e Is most likely an Exception object what got thrown.
+	*/
 	public static function crashHandler($e = null) {
 		$ignoreCodes = array(E_STRICT);
 		if (is_null($e))
@@ -145,7 +143,10 @@ class ErrorHandler
 	}
 }
 
-// This function does not exactly belong here but it is related to this section
+/**
+* This function does not exactly belong here but it is related to this section
+* @param $str is the value to be dumped as a string after having some contents replaced.
+*/
 function HNvar_dump($str) {
 	return ErrorHandler::replaceFieldList($str);
 }

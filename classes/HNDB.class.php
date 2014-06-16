@@ -12,6 +12,7 @@
 * @requires PEAR/MDB2
 */
 
+/** Base working class of HNWebCore access to databases */
 class HNDB
 {
 	const DATE_FORMAT = 'Y-m-d';
@@ -27,6 +28,7 @@ class HNDB
 	*/
 	public static $runStats = array();
 
+	/** Use this to get an instance of MDB2 for use anywhere */
 	public static function MDB2() {
 		static $MDB2;
 		if (!isset($MDB2)) {
@@ -40,6 +42,14 @@ class HNDB
 		return $MDB2;
 	}
 
+	/** Custom DSN processing.
+	* Because of the overrides HNWebCore uses for making errors throw exception and
+	* recording how long things take, this DSN function should be called by the
+	* factories to make certain the correct files are loaded for continued loading.
+	* 
+	* @param $dsn is the DSN which needs to be processed.
+	* @returns The updated DSN for sending into MDB2 loaders.
+	*/
 	private static function checkCustomDSN($dsn) {
 		$dsn = self::MDB2()->parseDSN($dsn);
 		
@@ -86,6 +96,7 @@ class HNDB
 		return $dsn;
 	}
 
+	/** @see MDB2::factory() */
 	public static function &factory($dsn, $options = false) {
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
@@ -99,6 +110,7 @@ class HNDB
 		return $result;
 	}
 
+	/** @see MDB2::connect() */
 	public static function &connect($dsn, $options = false) {
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
@@ -112,6 +124,7 @@ class HNDB
 		return $result;
 	}
 
+	/** @see MDB2::singleton() */
 	public static function &singleton($dsn = null, $options = false) {
 		if ($options === false) $options = array();
 #		$options['debug'] = (DEBUG ? 1 : 0);
@@ -137,6 +150,8 @@ class HNDB
 	* Highlights an SQL string to look more cool.
 	*
 	* @param string $sql The SQL string to highlight.
+	* @param boolean $color Whether to use color highlighting. Default is true.
+	* @param boolean $multiline Whether to add line breaks for better display.
 	* @return string An HTML string that is the SQL statement highlighted.
 	*/
 	public static function highlight_sql($sql, $color = true, $multiline = true)
@@ -248,9 +263,9 @@ class HNDB
 	}
 }
 
-/** Contains WhereParts and tells how they go together. */
 define('WHERE_AND', 1);
 define('WHERE_OR', 2);
+/** Contains WhereParts and tells how they go together. */
 class WhereList extends FieldList
 {
 	/** @see append() */

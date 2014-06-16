@@ -24,12 +24,23 @@ require_once CLASS_PATH. '/HNMOBBasic.class.php';
 require_once CLASS_PATH. '/AutoQuery.class.php';
 require_once CLASS_PATH. '/HNMail.php';
 
+/** Output function for script use.
+* Provides a way for scripts to supply output that can be marked up by this cron script.
+* @param $str is the string to be outputted.
+*/
 function out($str) {
 	echo $str . "\n";
 }
 
+/** Main CRON controller for HNWebCore.
+* This class is designed to be called at quite regular intervals from the OS and
+* will process the contents of CRON_PATH for scripts that want to be run. The script
+* in CRON_PATH runs and gets to return a timestamp of the earliest time it would
+* like to next be run.
+*/
 class CRON
 {
+	/** Main processing method */
 	public static function initiate() {
 		// Prepare $lastRun and $nextRun array
 		if (is_file(CRON_DATA_FILE)) {
