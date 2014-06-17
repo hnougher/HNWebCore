@@ -256,18 +256,6 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
-	* Get the data type parameters that are associated with a field.
-	*
-	* @param string $field The name of the field.
-	* @return array The field parameters.
-	*/
-	public function getValParam($field) {
-	throw new Exception('No longer implemented! Please use $OBJ::getTableDef()->fields[$field] instead.');
-		$fields = $this->fieldList->getReadable();
-		return (isset($fields[$field]) ? $fields[$field] : false);
-	}
-
-	/**
 	* @param $fields An array of fields which defines the output we want.
 	*    $fields can also contain a string, in which case we call replaceFields on it.
 	* @return array The results of the population.
@@ -461,7 +449,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// Check that something is going to be saved
 		if (empty($fields)) {
 			// Nothing needs saving so any changed values mean nothing
-			$this->myChangedData = array();
+			$this->clearChanges();
 			return true;
 		}
 		
@@ -497,7 +485,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		// YAY! we are done! Now to clean up
 		$stmt->free();
 		$this->status = self::NOT_LOADED;
-		$this->myChangedData = array();
+		$this->clearChanges();
 		return true;
 	}
 
