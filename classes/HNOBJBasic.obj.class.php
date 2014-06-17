@@ -65,7 +65,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	protected $myData = array();
 
 	/**
-	* Constains the values that have been changed compared to the
+	* Contains the values that have been changed compared to the
 	* database values. These are saved when {@link save()} is called.
 	* @var array
 	*/
@@ -89,11 +89,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 
 	/**
 	* Loads an object using the config specified object class so that the
-	* programmer doesnt have to do such complex things often.
+	* programmer doesn't have to do such complex things often.
 	*
 	* @param $object The object name to be loaded. eg: user, login_log.
 	* @param $id An array of values or single value which will be used as keys to load the object.
-	* @param $loadNow Boolean which is TRUE will cause this new OBJ to be immeadiately loaded from DB.
+	* @param $loadNow Boolean which is TRUE will cause this new OBJ to be immediately loaded from DB.
 	* @return HNOBJBasic A object class that extends the HNOBJBasic base class.
 	*/
 	public static function loadObject($object, $id, $loadNow = false) {
