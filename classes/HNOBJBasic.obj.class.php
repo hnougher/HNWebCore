@@ -97,15 +97,12 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return HNOBJBasic A object class that extends the HNOBJBasic base class.
 	*/
 	public static function loadObject($object, $id, $loadNow = false) {
-		self::loadClassFor($object);
-		
 		$OBJ = HNOBJCache::get($object, $id);
 		if ($OBJ === false || !($OBJ instanceof HNOBJBasic)) {
 			// We need a new object
+			self::loadClassFor($object);
 			$className = 'OBJ' . $object;
 			$OBJ = new $className($id, $loadNow);
-			if (!empty($id))
-				HNOBJCache::set($OBJ, $object);
 		}
 		return $OBJ;
 	}
@@ -153,8 +150,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	public function __construct($id, $loadNow) {
 		$this->myId = (array) $id;
 		self::prepareObjectDefs();
-		if ($loadNow)
-			$this->load();
+		HNOBJCache::set($this);
+		if ($loadNow) $this->load();
 
 		// Object Count Statistic Update
 		if (STATS) {
@@ -1120,8 +1117,6 @@ class HNOBJCache
 					throw new Exception('Empty _OBJPrototype must not have data if its being cached');
 				self::$setHits++;
 				self::$cachedObjects['_OBJPrototype'][$className] = $OBJ;
-			} elseif (DEBUG) {
-				throw new Exception('Dont cache HNOBJBasic with no ID');
 			}
 			return;
 		}
