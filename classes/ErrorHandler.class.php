@@ -34,7 +34,9 @@ class ErrorHandler
 			E_USER_WARNING		 =>	'Custom Warning',
 			E_USER_NOTICE		 =>	'Custom Notice',
 			E_STRICT			 =>	'Runtime Notice',
-			E_RECOVERABLE_ERROR	 =>	'Catchable Fatal Error'
+			E_RECOVERABLE_ERROR	 =>	'Catchable Fatal Error',
+			E_DEPRECATED		=> 'Deprecated Notice',
+			E_USER_DEPRECATED	=> 'Deprecated Notice',
 			);
 
 	/**
