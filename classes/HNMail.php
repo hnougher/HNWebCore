@@ -69,7 +69,7 @@ class HNMail
 		}
 		
 		ErrorHandler::$processErrors = false;
-		$this->MailMime = new Mail_Mime(array('eol' => "\n"));
+		$this->MailMime = new Mail_Mime();
 		ErrorHandler::$processErrors = true;
 		
 		$this->headers = array(
