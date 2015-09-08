@@ -173,6 +173,22 @@ class HNTPLListStatic extends HNTPLList
 	}
 
 	/**
+	* Adds a new link.
+	* 
+	* @param string $link The URI for the link to go.
+	* @param string|object $content Set the content to raw string or an object.
+	* @uses new_tag()
+	*/
+	public function new_link( $link, $content = false )
+	{
+		$core = new HNTPLCore();
+		$attrib = array( 'href' => $link );
+		$core->new_tag( 'a', $attrib, ( $content === false ? $link : $content ) );
+		
+		$this->new_tag( 'li', null, $core );
+	}
+
+	/**
 	* Adds a new record to the list.
 	* 
 	* @param string $value The value of the list item.

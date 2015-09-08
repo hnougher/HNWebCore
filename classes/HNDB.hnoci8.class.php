@@ -401,7 +401,7 @@ class MDB2_Driver_hnoci8 extends MDB2_Driver_oci8
 			} elseif ($part == WHERE_OR) {
 				$ret .= ' OR ';
 			} else {
-				throw new Eception ('This cannot be happening! Its not possible!');
+				throw new Exception ('This cannot be happening! Its not possible!');
 			}
 		}
 		return $ret;

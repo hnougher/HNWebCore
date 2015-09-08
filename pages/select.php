@@ -21,16 +21,16 @@ case 'user':
 		`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`
 		FROM `user`
 		WHERE
-			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:0,""),"%")
+			CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:filter,""),"%")
 		ORDER BY
-			ELT(:1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) ASC,
-			ELT(:1*-1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) DESC,
+			ELT(:order,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) ASC,
+			ELT(:order*-1,`userid`, `username`, CONCAT_WS(", ",`last_name`,`first_name`), `gender`) DESC,
 			`username`
-		LIMIT :2,:3', array('text','integer','integer','integer'));
+		LIMIT :offset,:perpage ', array('filter'=>'text','order'=>'integer','offset'=>'integer','perpage'=>'integer'));
 	$queryCount = StoreAJAXQuery('DEFAULT', 'SELECT COUNT(*)
 		FROM `user`
-		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:0,""),"%")
-		', array('text'));
+		WHERE CONCAT_WS(" ",`username`,`last_name`,`first_name`,`last_name`,`gender`) LIKE CONCAT("%", IFNULL(:filter,""),"%")
+		', array('filter'=>'text'));
 	break;
 
 default:
@@ -49,3 +49,5 @@ $after .= (strpos( $after, '?' ) === false ? '?' : '&').$query[0]. '=--ID--';
 $selector = $HNTPL->new_selector($queryRows, $fieldNames);
 $selector->set_selector_type(HNTPLSelector::TYPE_PAGE | HNTPLSelector::TYPE_SEARCH | HNTPLSelector::TYPE_ORDER);
 $selector->set_query_code_counter($queryCount);
+$selector->set_row_onclick_uri($after);
+

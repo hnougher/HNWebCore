@@ -173,6 +173,9 @@ class HNMail
 	* Send the email to all addresses in the To, Cc and Bcc lists.
 	*/
 	public function send() {
+		if (MAIL_BACKEND == 'none')
+			return;
+		
 		ErrorHandler::$processErrors = false;
 		$headers = $this->getHeaders();
 		$body = $this->MailMime->get();
@@ -194,6 +197,9 @@ class HNMail
 	* Send the email to just the given address.
 	*/
 	public function sendSingle($to) {
+		if (MAIL_BACKEND == 'none')
+			return;
+		
 		ErrorHandler::$processErrors = false;
 		$headers = $this->getHeaders();
 		$body = $this->MailMime->get();

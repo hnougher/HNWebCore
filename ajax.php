@@ -26,6 +26,7 @@ session_start();
 #	define('STATS', true);
 
 require_once 'config.php';
+require_once CLASS_PATH. '/HNMail.php'; // For ErrorHandler use
 require_once CLASS_PATH. '/ErrorHandler.class.php';
 require_once CLASS_PATH. '/HNDB.class.php';
 date_default_timezone_set(SERVER_TIMEZONE);
@@ -45,14 +46,21 @@ for ($i = 0; ; $i++) {
 	$query = array();
 	$query['def'] = $_SESSION['AJAX_QUERIES'][$_REQUEST['q'.$j]];
 	$query['param'] = (isset($_REQUEST['p'.$j]) ? (array) $_REQUEST['p'.$j] : array());
+	unset($_REQUEST['q'.$j], $_REQUEST['p'.$j]);
 	
 	// Do we have the right amount of params?
-	$ACTPARAM = count($query['param']);
+	/*$ACTPARAM = count($query['param']);
 	$REQPARAM = count($query['def'][2]);
 	if ($REQPARAM != $ACTPARAM)
-		die('Error: Requested stored query ' .$i. ' needs ' .$REQPARAM. ' parameters, ' .$ACTPARAM. ' given.');
+		die('Error: Requested stored query ' .$i. ' needs ' .$REQPARAM. ' parameters, ' .$ACTPARAM. ' given.');*/
 	
 	$queryQueue[] = $query;
+}
+
+// Leftover $_REQUEST get added to each query's parameters
+if (count($_REQUEST)) {
+	foreach ($queryQueue as &$query)
+		$query['param'] = array_merge($_REQUEST, $query['param']);
 }
 
 // Clean up
@@ -64,13 +72,19 @@ echo '[';
 
 foreach ($queryQueue as $queryNumer => $QUERY) {
 	list($CONN, $SQL, $PARAMTYPES, $RETTYPES) = $QUERY['def'];
-	$PARAMS = $QUERY['param'];
+	$PARAMS_ORIG = $QUERY['param'];
+	$PARAMS = array();
 	
 	// Early fix of params to help avoid strange MDB2 errors
 	// (it was seen that having a query with param use :0 :1 :1 LIMIT :2,:3 resulted in :3 being string)
+	// Also removes params that are not expected
 	foreach ($PARAMTYPES as $key => $val) {
-		if (in_array($val, array('integer')))
-			$PARAMS[$key] = (int) $PARAMS[$key];
+		if (!isset($PARAMS_ORIG[$key]))
+			$PARAMS[$key] = null;
+		elseif ($val == 'integer')
+			$PARAMS[$key] = (int) $PARAMS_ORIG[$key];
+		else
+			$PARAMS[$key] = $PARAMS_ORIG[$key];
 	}
 	
 	$DB =& HNDB::singleton(constant('HNDB_' .$CONN));

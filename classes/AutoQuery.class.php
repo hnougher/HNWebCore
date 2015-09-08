@@ -5,23 +5,29 @@
 
 class AutoQuery
 {
-	private $connection;
+	protected $connection;
 	
 	/* A set of AutoQueryTable in order of linking */
-	private $tableList = array();
+	protected $tableList = array();
 	
 	/* A set of AutoQueryTable that are bases of join trees */
-	private $tableListUnique = array();
+	protected $tableListUnique = array();
 	
 	public function __construct() {
 	}
 	
-	public function addTable($object, $alias = false, $_IsJoined = false) {
+	/// Helper function
+	public function _CreateAutoQueryTable($AQ, $object, $alias = false) {
+		return new AutoQueryTable($AQ, $object, $alias);
+	}
+	
+	/// Adds first table to the query
+	public function table($object, $alias = false, $_IsJoined = false) {
 		if (empty($alias))
 			$alias = $object;
 		if (isset($this->tableList[$alias]))
 			throw new Exception('There cannot be two tables using the same alias in AutoQuery');
-		$AQT = new AutoQueryTable($this, $object, $alias);
+		$AQT = $this->_CreateAutoQueryTable($this, $object, $alias);
 		if (empty($this->connection))
 			$this->connection = $AQT->getTableDef()->connection;
 		elseif ($AQT->getTableDef()->connection != $this->connection)
@@ -32,6 +38,11 @@ class AutoQuery
 		return $AQT;
 	}
 	
+	/// @TODO remove
+	public function addTable($object, $alias = false, $_IsJoined = false) {
+		return $this->table($object, $alias, $_IsJoined);
+	}
+	
 	public function getTableList() {
 		return $this->tableList;
 	}
@@ -40,8 +51,7 @@ class AutoQuery
 	}
 	
 	public function getSQL($noLimit = false) {
-		$DB =& HNDB::singleton(constant($this->connection));
-		return $DB->makeAutoQuery($this, !$noLimit);
+		return HNDB::_DEFAULT()->makeAutoQuery($this, !$noLimit);
 	}
 	
 	public function getAJAXCode($noLimit = false, $paramTypes = array()) {
@@ -63,29 +73,29 @@ class AutoQuery
 class AutoQueryTable
 {
 	// Link back to parent AutoQuery
-	private $AQ;
+	protected $AQ;
 	
 	// Related tableDef
-	private $tableDef;
+	protected $tableDef;
 	
 	// Table Alias
-	private $tableAlias;
+	protected $tableAlias;
 	
 	// Link Definitions
 	// array(array($joinType, $onClause, $remoteAQT), ...)
-	private $linkDefs = array();
+	protected $linkDefs = array();
 	
 	// A FieldList object
-	private $fieldList;
+	protected $fieldList;
 	
 	// A WhereList object
-	private $whereList;
+	protected $whereList;
 	
 	// An OrderList object
-	private $orderList;
+	protected $orderList;
 	
 	// An OrderList object
-	private $groupList;
+	protected $groupList;
 	
 	public function __construct($AQ, $object, $alias = false) {
 		if (!($AQ instanceof AutoQuery))
@@ -108,7 +118,7 @@ class AutoQueryTable
 	* @param $joinType You can use different JOIN types as long as they support the ON clause.
 	*      eg: JOIN, INNER JOIN, CROSS JOIN, LEFT [OUTER] JOIN, RIGHT [OUTER] JOIN.
 	*/
-	public function addLink($field, $alias = false, $onClause = false, $joinType = 'LEFT OUTER JOIN') {
+	public function link($field, $alias = false, $onClause = false, $joinType = 'LEFT OUTER JOIN') {
 		// Check readable link
 		$readableFields = $this->tableDef->getReadableFieldsAndSubtables();
 		if (!isset($readableFields[$field]))
@@ -116,7 +126,7 @@ class AutoQueryTable
 		$fieldDef = $readableFields[$field];
 		
 		// Load other object
-		$RAQT = $this->AQ->addTable($fieldDef->object, $alias);
+		$RAQT = $this->AQ->table($fieldDef->object, $alias, true);
 		$RTableDef = $RAQT->getTableDef();
 		
 		// Create ON clause if not given
@@ -135,9 +145,12 @@ class AutoQueryTable
 		// Record link definitions
 		$this->linkDefs[] = array($joinType, $onClause, $RAQT);
 		
-		// FROM table1 alias1 JOIN table2 alias2 ON (alias1.field1 = alias2.field2)
-		
-		#$SQL = $fieldDef->SQLWithTable($alias)
+		return $RAQT;
+	}
+	
+	/// @TODO remove
+	public function addLink($field, $alias = false, $onClause = false, $joinType = 'LEFT OUTER JOIN') {
+		return $this->link($field, $alias, $onClause, $joinType);
 	}
 	
 	private function getFieldDef($field) {
@@ -147,7 +160,8 @@ class AutoQueryTable
 		return $readableFields[$field];
 	}
 	
-	public function addField($field, $fieldIndex = false, $customField = false) {
+	/// Adds a field to return in the query
+	public function field($field, $fieldIndex = false, $customField = false) {
 		if (!$customField)
 			$field = $this->getFieldDef($field);
 		if ($fieldIndex !== false)
@@ -156,22 +170,34 @@ class AutoQueryTable
 			$this->fieldList->append($field);
 	}
 	
+	/// @TODO remove
+	public function addField($field, $fieldIndex = false, $customField = false) {
+		return $this->field($field, $fieldIndex, $customField);
+	}
+	
 	/**
 	* Appends a WherePart to the WhereList.
 	* @see WhereList::append($proto)
 	* @see WherePart::__construct($field, $sign, $value, $dontEscape = false)
-	* @example addWhere(new WherePart(...), WHERE_AND, new WherePart(...))
+	* @example where(new WherePart(...), WHERE_AND, new WherePart(...))
 	*/
-	public function addWhere($proto) {
+	public function where($proto) {
 		if (!is_array($proto))
 			$proto = func_get_args();
 		$this->whereList->append($proto);
 	}
 	
-	public function addOrder($field, $order = ORDER_ASC, $orderIndex = false, $customField = false) {
+	/// @TODO remove
+	public function addWhere($proto) {
+		if (!is_array($proto))
+			$proto = func_get_args();
+		return $this->where($proto);
+	}
+	
+	public function order($field, $order = ORDER_ASC, $orderIndex = false, $customField = false) {
 		$this->addOrderToList($this->orderList, $field, $order, $orderIndex, $customField);
 	}
-	public function addGroup($field, $order = ORDER_ASC, $groupIndex = false, $customField = false) {
+	public function group($field, $order = ORDER_ASC, $groupIndex = false, $customField = false) {
 		$this->addOrderToList($this->groupList, $field, $order, $groupIndex, $customField);
 	}
 	private function addOrderToList($orderList, $field, $order = ORDER_ASC, $orderIndex = false, $customField = false) {
@@ -181,6 +207,16 @@ class AutoQueryTable
 			$orderList->insertAt(array($field, $order), $orderIndex);
 		else
 			$orderList->append(array($field, $order));
+	}
+	
+	/// @TODO remove
+	public function addOrder($field, $order = ORDER_ASC, $orderIndex = false, $customField = false) {
+		return order($field, $order = ORDER_ASC, $orderIndex, $customField);
+	}
+	
+	/// @TODO remove
+	public function addGroup($field, $order = ORDER_ASC, $groupIndex = false, $customField = false) {
+		return group($field, $order = ORDER_ASC, $groupIndex, $customField);
 	}
 	
 	public function getTableDef() {

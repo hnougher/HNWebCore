@@ -138,6 +138,12 @@ class HNDB
 		return $result;
 	}
 
+	/** Creates a singleton of just the DEFAULT connection */
+	public static function &_DEFAULT() {
+		$DB =& HNDB::singleton(HNDB_DEFAULT);
+		return $DB;
+	}
+
 	/** @see MDB2::query() */
 	function &query($query, $types = null, $result_class = true, $result_wrap_class = false) {
 		$result =& query($query, $types, $result_class, $result_wrap_class);

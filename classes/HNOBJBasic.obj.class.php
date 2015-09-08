@@ -235,6 +235,8 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	* @return array|string
 	*/
 	public function getId() {
+		if (count($this->myId) == 0)
+			return null;
 		if (count($this->myId) == 1)
 			return $this->myId[0];
 		return $this->myId;
@@ -283,7 +285,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 	}
 
 	/**
-	* Replaces all occurances of field names matching $pre$field$post in
+	* Replaces all occurrences of field names matching $pre$field$post in
 	* a passed in string.
 	*
 	* @param string $str The string to replace the fields in. May not contain pipe.
@@ -338,7 +340,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 #		}
 		
 		// If there is just one key and that key is zero then there is assumed no record to load
-		if (count($this->myId) == 1 && $this->myId[0] === 0) {
+		if (count($this->myId) == 0 || (count($this->myId) == 1 && $this->myId[0] === 0)) {
 			$this->status = self::NO_RECORD;
 		} else {
 			// Execute the statement
@@ -373,8 +375,11 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->loadedWithTableDef = $this::$tableDef; // Copy of object not variable slot
 		foreach ($this::$tableDef->fields as $name => &$fieldDef) {
 			// In case the value to set is not defined, we give it an empty string
-			if (!isset($dataArray[$name]))
-				$dataArray[$name] = '';
+			if (!array_key_exists($name, $dataArray)) {
+				$this->myData[$name] = null;
+				$this->myChangedData[$name] = $fieldDef->default;
+				continue;
+			}
 			
 			// Special handling of objects
 			if (!empty($fieldDef->object)) {
@@ -445,14 +450,16 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 					#echo 'For ' . $fieldName . ' "' . $this->myData[$fieldName]->getId() . '" == "' . $this->myChangedData[$fieldName]->getId() . '"';
 					continue;
 				}
+				#$from = $this->myData[$fieldName]->getId();
 				$replacements[$fieldName] = $this->myChangedData[$fieldName]->getId();
 				$fields[] = $fieldName;
 			} else {
+				#$from = $this->myData[$fieldName];
 				$replacements[$fieldName] = $this->myChangedData[$fieldName];
 				$fields[] = $fieldName;
 			}
 			
-			//echo "Field $fieldName changed from '" .$this->myData[$fieldName]. "' to '" .$this->myChangedData[$fieldName]. "'\n";
+			#echo "Field $fieldName changed from '" .$from. "' to '" .$replacements[$fieldName]. "'\n";
 		}
 		
 		// Check that something is going to be saved
@@ -469,7 +476,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		#var_dump($stmt->query, $stmt->positions, $stmt->values, $replacements);
 		$result = $stmt->execute($replacements);
 		if ($result == 0)
-			throw new Exception('No rows affected by ' .$type);
+			throw new HNOBJNothingUpdatedException('No rows affected by ' .$type);
 		
 		// Update my ID values and cache
 		if ($type == 'INSERT' && $this::$tableDef->hasAutoId) {
@@ -517,6 +524,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$DB = HNDB::singleton(constant($this::$tableDef->connection));
 		$stmt = $DB->prepareOBJQuery('DELETE', $this::$tableDef);
 		
+		#var_dump($replacements);
 		$result = $stmt->execute($replacements);
 		if ($result == 0)
 			throw new Exception('No rows affected by DELETE');
@@ -623,7 +631,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 		$this->checkLoaded(true);
 		if (!array_key_exists($field, $this::$tableDef->getReadableFieldsAndSubtables()))
 			throw new Exception('No such field "' .$field. '" in "' .$this::$tableDef->table. '" or unauthorised');
-		if (!isset($this->myData[$field]))
+		if (!array_key_exists($field, $this->myData))
 			throw new Exception('Field "' .$field. '" in "' .$this::$tableDef->table. '" has not loaded for some reason');
 		
 		$fieldData = $this->myData[$field];
@@ -685,7 +693,7 @@ class HNOBJBasic implements IteratorAggregate, ArrayAccess, Countable
 				throw new Exception('Invalid value being set for ' .$field);
 		} elseif (isset($fieldDef->validation)) {
 			if (!preg_match($fieldDef->validation, $value))
-				throw new Exception('Value for ' .$field. ' does not pass validation');
+				throw new HNOBJValidationException('Value for ' .$field. ' does not pass validation');
 		}
 		
 		// Store changed value if it has really changed
@@ -937,8 +945,12 @@ class _DefinitionTable extends _DefinitionBase
 		return $this->readableFields;
 	}
 	
+	public function getReadableSubtables() {
+		return $this->subtables;
+	}
+	
 	public function getReadableFieldsAndSubtables() {
-		return array_merge($this->getReadableFields(), $this->subtables);
+		return array_merge($this->getReadableFields(), $this->getReadableSubtables());
 	}
 	
 	public function getWriteableFields() {
@@ -971,7 +983,7 @@ class _DefinitionTable extends _DefinitionBase
 class _DefinitionField extends _DefinitionBase
 {
 	/* PLEASE TREAT ALL AS READ ONLY! */
-	private static $allowedParameters = array('type','object','SQL',
+	private static $allowedParameters = array('type','object','SQL','display',
 		'validation','values','default','localField','remoteField');
 	/* Valid param for OBJ/MOB are type, SQL, readBy, writeBy, insertBy, (validation OR values), default */
 	/* Default: Used raw as the default value in an insert statement */
@@ -984,6 +996,7 @@ class _DefinitionField extends _DefinitionBase
 		parent::__construct();
 		$this->virtName = $virtName;
 		$this->tableDef =& $TableDef;
+		$this->default = null;
 		
 		$this->setPermission($defs);
 		foreach ($defs as $key => &$val) {
@@ -1209,3 +1222,7 @@ class _OBJPrototype extends _MOBOBJPrototype
 	}
 }
 
+
+// Exceptions
+class HNOBJNothingUpdatedException extends Exception {}
+class HNOBJValidationException extends Exception {}

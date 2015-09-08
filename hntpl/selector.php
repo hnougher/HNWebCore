@@ -216,16 +216,16 @@ class HNTPLSelector extends HNTPLCore
 			
 			echo '<input type="hidden" name="q" value="' .$this->queryCode. '"/>';
 			if ($this->type & self::TYPE_SEARCH)
-				echo '<input type="hidden" name="p[]" class="srchp" value=""/>';
+				echo '<input type="hidden" name="p[filter]" class="srchp" value=""/>';
 			if ($this->type & self::TYPE_ORDER)
-				echo '<input type="hidden" name="p[]" class="orderp" value=""/>';
+				echo '<input type="hidden" name="p[order]" class="orderp" value=""/>';
 			if ($this->type & self::TYPE_PAGE) {
-				echo '<input type="hidden" name="p[]" id="rowoffset" value="0"/>';
-				echo '<input type="hidden" name="p[]" id="perpage" value="30"/>';
+				echo '<input type="hidden" name="p[limitstart]" id="rowoffset" value="0"/>';
+				echo '<input type="hidden" name="p[limitcount]" id="perpage" value="30"/>';
 				echo '<input type="hidden" id="totalrows" value="0"/>';
 				echo '<input type="hidden" name="q1" value="' .$this->queryCodeCounter. '"/>';
 				if ($this->type & self::TYPE_SEARCH)
-					echo '<input type="hidden" name="p1[]" class="srchp" value=""/>';
+					echo '<input type="hidden" name="p1[filter]" class="srchp" value=""/>';
 			}
 		echo '</form>';
 ?>
@@ -257,6 +257,7 @@ class HNTPLSelector extends HNTPLCore
 		}
 		var paramsTmp = $selector.serializeArray();
 		var params = {};
+		window.location.search.replace(/[?&]+([^=&]+)=([^&]*)/gi,function(str,key,value){params[key] = value;});
 		for (var i = 0; i < paramsTmp.length; i++) {
 			var name = paramsTmp[i].name;
 			var value = paramsTmp[i].value;

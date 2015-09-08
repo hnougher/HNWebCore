@@ -139,6 +139,24 @@ class HNTPLForm extends HNTPLCore
 	}
 
 	/**
+	* Adds a new link.
+	* 
+	* @param string $label The field label.
+	* @param string $link The URI for the link to go.
+	* @param string|object $content Set the content to raw string or an object.
+	* @uses new_tag()
+	*/
+	public function new_link( $label, $link, $content = false )
+	{
+		$this->content[] = array(
+			'label' => $label,
+			'tag' => 'a',
+			'attrib' => array( 'href' => $link ),
+			'content' => $content ? $content : $link,
+			);
+	}
+
+	/**
 	* Adds a new text field to the form.
 	* 
 	* @param string $label The field label.

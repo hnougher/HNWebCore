@@ -145,7 +145,7 @@ class HNMOBBasic implements IteratorAggregate, ArrayAccess, Countable
 	/**
 	* Makes a new object for the parent object.
 	*
-	* @return HNOBJBasic The new object that at least has the ansestor HNOBJBasic.
+	* @return HNOBJBasic The new object that at least has the ancestor HNOBJBasic.
 	*/
 	public function addNew() {
 		if (!$this->checkLoaded(true))

@@ -101,6 +101,7 @@ class HNTPLMainTypes extends HNTPLCore
 	* @uses new_raw()
 	*/
 	public function new_list($isOrdered = false) {
+		require_once TEMPLATE_PATH. '/lists.php';
 		$content = new HNTPLListStatic($isOrdered);
 		$this->new_raw($content);
 		return $content;

@@ -37,6 +37,7 @@ class ErrorHandler
 			E_RECOVERABLE_ERROR	 =>	'Catchable Fatal Error',
 			E_DEPRECATED		=> 'Deprecated Notice',
 			E_USER_DEPRECATED	=> 'Deprecated Notice',
+			0 => 'UNKNOWN',
 			);
 
 	/**
@@ -68,7 +69,8 @@ class ErrorHandler
 		$fatals = array(E_USER_ERROR, E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_RECOVERABLE_ERROR);
 		if (self::$processErrors || in_array($errNo, $fatals)) {
 			// Ignore notice in PEAR
-			if (!preg_match('|[\\\/]pear[\\\/]|i', $errFile) || in_array($errNo, $fatals)) {
+			$forwardSlashErrFile = str_replace('\\', '/', $errFile);
+			if (substr($forwardSlashErrFile, 0, strlen(PEAR_PATH)) != PEAR_PATH || in_array($errNo, $fatals)) {
 				echo self::$errorType[$errNo]. ': ';
 				echo "$errStr in '$errFile' on line $errLine.\n";
 

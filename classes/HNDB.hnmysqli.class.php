@@ -61,7 +61,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 	function connect() {
 		$startTime = microtime(true);
 		$oldType = $this->phptype;
-		$this->phptype = 'oci8';
+		$this->phptype = 'mysqli';
 		$result = parent::connect();
 		$this->phptype = $oldType;
 		self::$runStats['connect_time'] += microtime(true) - $startTime;
@@ -118,8 +118,8 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		case 'SELECT':
 			foreach ($tableDef->getReadableFields() as $fieldName => $fieldDef) {
 				$SQL = $fieldDef->SQLWithTable();
-				if ($fieldName != substr($SQL, 1, -1))
-					$SQL .= ' AS "' .$fieldName. '"';
+				if ($fieldName != $SQL)
+					$SQL .= ' "' .$fieldName. '"';
 				$sqlFields[] = $SQL;
 				$returnTypes[] = $fieldDef->type;
 			}
@@ -134,7 +134,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($idFields))
 				throw new Exception('No ID fields in SELECT. Cannot continue.');
 			
-			$SQL = sprintf('SELECT %s FROM `%s` WHERE %s LIMIT 1',
+			$SQL = sprintf('SELECT %s FROM %s WHERE %s LIMIT 1',
 				implode(',', $sqlFields), $tableDef->table, implode(' AND ', $idFields));
 			break;
 		
@@ -161,7 +161,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($idFields))
 				throw new Exception('No ID fields in UPDATE. Cannot continue.');
 			
-			$SQL = sprintf('UPDATE `%s` SET %s WHERE %s LIMIT 1',
+			$SQL = sprintf('UPDATE %s SET %s WHERE %s LIMIT 1',
 				$tableDef->table, implode(',', $sqlFields), implode(' AND ', $idFields));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
@@ -172,20 +172,19 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			foreach ($tableDef->getInsertableFields() as $fieldName => $fieldDef) {
 				if (($fieldsIndex = array_search($fieldName, $fields)) === false) {
 					if (isset($fieldDef->default))
-						$sqlFields[] = $fieldDef->SQLWithTable(). '=' .$fieldDef->default;
+						$sqlFields[$fieldDef->SQLWithTable()] = $fieldDef->default;
 					continue;
 				}
 				unset($fields[$fieldsIndex]);
-				$sqlFields[] = $fieldDef->SQLWithTable(). '=:' .$fieldName;
-				$returnTypes[] = $fieldDef->type;
+				$sqlFields[$fieldDef->SQLWithTable()] = ':'.$fieldName;
 			}
 			if (!empty($fields))
 				throw new Exception('Following fields not insertable: ' .implode(', ', $fields));
 			if (empty($sqlFields))
 				throw new Exception('No fields to set in INSERT. Cannot continue.');
 			
-			$SQL = sprintf('INSERT INTO `%s` SET %s',
-				$tableDef->table, implode(',', $sqlFields));
+			$SQL = sprintf('INSERT INTO %s (%s) VALUES (%s)',
+				$tableDef->table, implode(',', array_keys($sqlFields)), implode(',', array_values($sqlFields)));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
 		
@@ -197,7 +196,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			if (empty($sqlFields))
 				throw new Exception('No ID fields in DELETE. Cannot continue.');
 			
-			$SQL = sprintf('DELETE FROM `%s` WHERE %s LIMIT 1',
+			$SQL = sprintf('DELETE FROM %s WHERE %s LIMIT 1',
 				$tableDef->table, implode(' AND ', $sqlFields));
 			$returnTypes = MDB2_PREPARE_MANIP;
 			break;
@@ -228,7 +227,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			$sqlFieldDefs = ($type == 'ALL' ? $tableDef->getReadableFields() : $tableDef->keys);
 			foreach ($sqlFieldDefs as $fieldName => $fieldDef) {
 				$SQL = $fieldDef->SQLWithTable();
-				if ($fieldName != substr($SQL, 1, -1))
+				if ($fieldName != $SQL)
 					$SQL .= ' AS "' .$fieldName. '"';
 				$sqlFields[] = $SQL;
 				$returnTypes[] = $fieldDef->type;
@@ -267,14 +266,14 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 			$order = ' ORDER BY ' .implode(',', $orderFields);
 		}
 		
-		$SQL = sprintf('SELECT %s FROM `%s` %s%s',
+		$SQL = sprintf('SELECT %s FROM %s %s%s',
 			implode(',', $sqlFields), $tableDef->table, $where, $order);
 		
 		#var_dump($SQL, $returnTypes);
 		return $this->prepare($SQL, $returnTypes);
 	}
 	
-	public function makeAutoQuery($autoQuery) {
+	public function makeAutoQuery($autoQuery, $hasLimit) {
 		if (!($autoQuery instanceof AutoQuery))
 			throw new Exception('Was not passed an AutoQuery');
 		
@@ -300,21 +299,21 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 		$groups = $this->AQOrderPrinter($autoQuery, 'group');
 		$orders = $this->AQOrderPrinter($autoQuery, 'order');
 		
-		$SQL = sprintf('SELECT %s FROM %s%s%s%s LIMIT :limitstart,:limitcount',
+		$SQL = sprintf('SELECT %s FROM %s%s%s%s%s',
 			$selectedFields,
 			implode(',', $fromClauseBlocks),
 			(empty($where) ? '' : ' WHERE ' .implode(' AND ', $where)),
 			(empty($groups) ? '' : ' GROUP BY ' .$groups),
-			(empty($orders) ? '' : ' ORDER BY ' .$orders)
+			(empty($orders) ? '' : ' ORDER BY ' .$orders),
+			($hasLimit ? ' LIMIT :limitstart,:limitcount' : '')
 			);
 		
 		return $SQL;
 	}
 	
-	public function prepareAutoQuery($autoQuery) {
-		$SQL = $this->makeAutoQuery($autoQuery);
-		$replaceTypes = array('integer', 'integer');
-		return $this->prepare($SQL, $replaceTypes);
+	public function prepareAutoQuery($autoQuery, $hasLimit) {
+		$SQL = $this->makeAutoQuery($autoQuery, $hasLimit);
+		return $this->prepare($SQL);
 	}
 	
 	private function AQFieldPrinter($autoQuery) {
@@ -324,7 +323,7 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 				if ($fieldPart->field instanceof _DefinitionField) {
 					$SQL = $fieldPart->field->SQLWithTable($AQT->getTableAlias());
 					if ($fieldPart->field->virtName != substr($SQL, 1, -1))
-						$SQL .= ' AS "' .$fieldPart->field->virtName. '"';
+						$SQL .= ' "' .$fieldPart->field->virtName. '"';
 				} else {
 					$SQL = $fieldPart->field;
 				}
@@ -337,9 +336,9 @@ class MDB2_Driver_hnmysqli extends MDB2_Driver_mysqli
 	private function AQFromPrinter($AQT) {
 		$linkDefs = $AQT->getLinkDefs();
 		$block = (empty($linkDefs) ? '' : '(');
-		$block .= '`'.$AQT->getTableDef()->table.'`';
+		$block .= $AQT->getTableDef()->table;
 		if ($AQT->getTableDef()->table != $AQT->getTableAlias())
-			$block .= ' AS "'.$AQT->getTableAlias().'"';
+			$block .= ' "'.$AQT->getTableAlias().'"';
 		foreach ($linkDefs as $linkDef) {
 			$block .= ' '.$linkDef[0].' '; // JOIN
 			$block .= $this->AQFromPrinter($linkDef[2]); // remote table and joins
@@ -407,12 +406,170 @@ class MDB2_Statement_hnmysqli extends MDB2_Statement_mysqli
 	function &_execute($result_class = true, $result_wrap_class = false) {
 		MDB2_Driver_hnmysqli::$runStats['stmt_exec_count']++;
 		$startTime = microtime(true);
-		$result =& parent::_execute($result_class, $result_wrap_class);
-		if (HNDB::MDB2()->isError($result))
+		#$result =& parent::_execute($result_class, $result_wrap_class);
+		$result =& self::_executeX($result_class, $result_wrap_class);
+		if (HNDB::MDB2()->isError($result)) {
+			var_dump($result->getUserInfo());
 			throw new Exception(DEBUG ? $result->getUserInfo() : $result->getMessage());
+		}
 		MDB2_Driver_hnmysqli::$runStats['stmt_exec_time'] += microtime(true) - $startTime;
 		return $result;
 	}
+	
+	/**
+	* Drop in replacement of parent::_execute() to fix http://pear.php.net/bugs/bug.php?id=17207
+	*/
+	function &_executeX($result_class = true, $result_wrap_class = false)
+    {
+        if (is_null($this->statement)) {
+            $result =& parent::_execute($result_class, $result_wrap_class);
+            return $result;
+        }
+        $this->db->last_query = $this->query;
+        $this->db->debug($this->query, 'execute', array('is_manip' => $this->is_manip, 'when' => 'pre', 'parameters' => $this->values));
+        if ($this->db->getOption('disable_query')) {
+            $result = $this->is_manip ? 0 : null;
+            return $result;
+        }
+
+        $connection = $this->db->getConnection();
+        if (HNDB::MDB2()->isError($connection)) {
+            return $connection;
+        }
+
+        if (!is_object($this->statement)) {
+            $query = 'EXECUTE '.$this->statement;
+        }
+        if (!empty($this->positions)) {
+            $parameters = array(0 => $this->statement, 1 => '');
+            $lobs = array();
+            $i = 0;
+            foreach ($this->positions as $parameter) {
+                if (!array_key_exists($parameter, $this->values)) {
+                    return $this->db->raiseError(MDB2_ERROR_NOT_FOUND, null, null,
+                        'Unable to bind to missing placeholder: '.$parameter, __FUNCTION__);
+                }
+                $value = $this->values[$parameter];
+                $type = array_key_exists($parameter, $this->types) ? $this->types[$parameter] : null;
+                if (!is_object($this->statement)) {
+                    if (is_resource($value) || $type == 'clob' || $type == 'blob') {
+                        if (!is_resource($value) && preg_match('/^(\w+:\/\/)(.*)$/', $value, $match)) {
+                            if ($match[1] == 'file://') {
+                                $value = $match[2];
+                            }
+                            $value = @fopen($value, 'r');
+                            $close = true;
+                        }
+                        if (is_resource($value)) {
+                            $data = '';
+                            while (!@feof($value)) {
+                                $data.= @fread($value, $this->db->options['lob_buffer_length']);
+                            }
+                            if ($close) {
+                                @fclose($value);
+                            }
+                            $value = $data;
+                        }
+                    }
+                    $quoted = $this->db->quote($value, $type);
+                    if (HNDB::MDB2()->isError($quoted)) {
+                        return $quoted;
+                    }
+                    $param_query = 'SET @'.$parameter.' = '.$quoted;
+                    $result = $this->db->_doQuery($param_query, true, $connection);
+                    if (HNDB::MDB2()->isError($result)) {
+                        return $result;
+                    }
+                } else {
+                    if (is_resource($value) || $type == 'clob' || $type == 'blob') {
+                        $parameters[] = null;
+                        $parameters[1].= 'b';
+                        $lobs[$i] = $parameter;
+                    } else {
+                        $parameters[] = $this->db->quote($value, $type, false);
+                        $parameters[1].= $this->db->datatype->mapPrepareDatatype($type);
+                    }
+                    ++$i;
+                }
+            }
+
+            if (!is_object($this->statement)) {
+                $query.= ' USING @'.implode(', @', array_values($this->positions));
+            } else {
+                $par_fix = array();
+                foreach ($parameters as &$v)
+                    $par_fix[] =& $v;
+                $result = @call_user_func_array('mysqli_stmt_bind_param', $par_fix);
+                if ($result === false) {
+                    $err =& $this->db->raiseError(null, null, null,
+                        'Unable to bind parameters', __FUNCTION__);
+                    return $err;
+                }
+
+                foreach ($lobs as $i => $parameter) {
+                    $value = $this->values[$parameter];
+                    $close = false;
+                    if (!is_resource($value)) {
+                        $close = true;
+                        if (preg_match('/^(\w+:\/\/)(.*)$/', $value, $match)) {
+                            if ($match[1] == 'file://') {
+                                $value = $match[2];
+                            }
+                            $value = @fopen($value, 'r');
+                        } else {
+                            $fp = @tmpfile();
+                            @fwrite($fp, $value);
+                            @rewind($fp);
+                            $value = $fp;
+                        }
+                    }
+                    while (!@feof($value)) {
+                        $data = @fread($value, $this->db->options['lob_buffer_length']);
+                        @mysqli_stmt_send_long_data($this->statement, $i, $data);
+                    }
+                    if ($close) {
+                        @fclose($value);
+                    }
+                }
+            }
+        }
+
+        if (!is_object($this->statement)) {
+            $result = $this->db->_doQuery($query, $this->is_manip, $connection);
+            if (HNDB::MDB2()->isError($result)) {
+                return $result;
+            }
+
+            if ($this->is_manip) {
+                $affected_rows = $this->db->_affectedRows($connection, $result);
+                return $affected_rows;
+            }
+
+            $result =& $this->db->_wrapResult($result, $this->result_types,
+                $result_class, $result_wrap_class, $this->limit, $this->offset);
+        } else {
+            if (!@mysqli_stmt_execute($this->statement)) {
+                $err =& $this->db->raiseError(null, null, null,
+                    'Unable to execute statement', __FUNCTION__);
+                return $err;
+            }
+
+            if ($this->is_manip) {
+                $affected_rows = @mysqli_stmt_affected_rows($this->statement);
+                return $affected_rows;
+            }
+
+            if ($this->db->options['result_buffering']) {
+                @mysqli_stmt_store_result($this->statement);
+            }
+
+            $result =& $this->db->_wrapResult($this->statement, $this->result_types,
+                $result_class, $result_wrap_class, $this->limit, $this->offset);
+        }
+
+        $this->db->debug($this->query, 'execute', array('is_manip' => $this->is_manip, 'when' => 'post', 'result' => $result));
+        return $result;
+    }
 }
 
 HNDB::MDB2()->loadClass('MDB2_Driver_Datatype_mysqli');
