@@ -16,6 +16,7 @@ Summary of Installation
 2. Modify config.php with server name and hostname.
 3. Get URL rewriting working by modifying .htaccess, web.config or similar.
 4. Install PEAR.
+5. Add pear modules Mail, Net_SMTP and Mail_Mime for use through HNMail.
 5. Add the MDB2 module at version 2.4.1.
 6. Add a MDB2 DB module like mysqli at version 2.4.1.
   Note: Only certain DB modules have wrappers atm. You can see them in /classes/HNDB.hn*.class.php.
